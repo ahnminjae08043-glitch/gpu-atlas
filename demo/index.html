@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -42,7 +42,7 @@
   .y { color: var(--ok); }
   .n { color: #4a525c; }
   .x { color: var(--bad); }
-  .kv { display: grid; grid-template-columns: 180px 1fr; gap: 2px 12px; font-size: 12.5px; }
+  .kv { display: grid; grid-template-columns: 200px 1fr; gap: 2px 12px; font-size: 12.5px; }
   .kv dt { color: var(--dim); }
   .kv dd { margin: 0; overflow-wrap: anywhere; }
   .issue { padding: 8px 10px; border-left: 3px solid; margin-bottom: 6px;
@@ -62,13 +62,13 @@
 <body>
 <main>
   <h1>gpu-atlas</h1>
-  <p class="sub">이 브라우저의 WebGPU가 실제로 무엇을 할 수 있는지 측정한다. 선언된 limits가 아니라 직접 만들어보고 그려본 결과다.</p>
+  <p class="sub">What WebGPU actually does in this browser — measured by creating the resources and running the passes, not by reading the declared limits.</p>
 
   <div class="row">
-    <button id="run">측정 시작</button>
-    <button id="quick" class="ghost">벤치 없이 빠르게</button>
-    <button id="copy" class="ghost" disabled>프로파일 복사</button>
-    <button id="save" class="ghost" disabled>JSON 저장</button>
+    <button id="run">Run full probe</button>
+    <button id="quick" class="ghost">Skip benchmarks</button>
+    <button id="copy" class="ghost" disabled>Copy profile</button>
+    <button id="save" class="ghost" disabled>Save JSON</button>
   </div>
 
   <div id="progress">

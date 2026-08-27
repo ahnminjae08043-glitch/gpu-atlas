@@ -1,43 +1,45 @@
-// gpu-atlas 프로파일 스키마.
+// gpu-atlas profile schema.
 //
-// 이 라이브러리의 전제: adapter.limits / adapter.features 가 말하는 것과
-// 그 기기에서 실제로 되는 것은 다르다. 그래서 모든 항목을 두 갈래로 기록한다.
-//   declared — 브라우저가 스스로 신고한 값
-//   verified — 실제로 만들어보고 그려보고 재본 값
-// 둘이 어긋나는 지점이 Discrepancy 이고, 그게 이 프로젝트가 모으려는 데이터다.
+// The premise of this library: what adapter.limits / adapter.features claim and
+// what the device actually does are different things. So every capability is
+// recorded along two tracks:
+//   declared — what the browser reported about itself
+//   verified — what actually worked when we created it, drew with it, measured it
+// Where the two disagree is a Discrepancy, and that is the data this project
+// exists to collect.
 
 export const SCHEMA_VERSION = 1;
 
-// ── 환경 ────────────────────────────────────────────────
+// ── Environment ─────────────────────────────────────────
 
 export interface EnvironmentInfo {
   userAgent: string;
-  /** UA-CH 기반. 없으면 undefined */
+  /** From UA-CH when available */
   platform?: string;
   /** 'Chrome' | 'Firefox' | 'Safari' | 'Edge' | 'unknown' */
   browser: string;
   browserVersion: string;
-  /** 모바일 여부 (UA-CH mobile 힌트 우선, 없으면 UA 추정) */
+  /** Prefers the UA-CH mobile hint, falls back to UA sniffing */
   mobile: boolean;
   deviceMemoryGB?: number;
   hardwareConcurrency?: number;
   devicePixelRatio: number;
 }
 
-// ── 어댑터 ──────────────────────────────────────────────
+// ── Adapter ─────────────────────────────────────────────
 
 export interface AdapterIdentity {
   vendor: string;
   architecture: string;
   device: string;
   description: string;
-  /** 폴백(소프트웨어) 어댑터면 true — 성능 수치의 의미가 완전히 달라진다 */
+  /** A software adapter — every performance number means something else entirely */
   isFallbackAdapter: boolean;
-  /** requestAdapter 에 넘긴 powerPreference */
+  /** The powerPreference passed to requestAdapter */
   powerPreference: GPUPowerPreference | 'default';
 }
 
-// ── 선언된 능력 ─────────────────────────────────────────
+// ── Declared capabilities ───────────────────────────────
 
 export interface DeclaredCapabilities {
   features: string[];
@@ -46,42 +48,44 @@ export interface DeclaredCapabilities {
   preferredCanvasFormat: string;
 }
 
-// ── 실측 검증 ───────────────────────────────────────────
+// ── Verified capabilities ───────────────────────────────
 
-/** 한 텍스처 포맷이 각 용도로 실제 쓰이는지 */
+/** Whether a texture format actually works for each usage */
 export interface FormatSupport {
   format: string;
-  /** 이 포맷을 쓰려면 필요한 feature (없으면 코어 포맷) */
+  /** The device feature this format requires, if any */
   requiresFeature?: string;
-  /** 해당 feature 가 declared.features 에 있는가 */
+  /** Whether that feature appears in declared.features */
   featureDeclared: boolean;
-  /** createTexture 자체가 되는가 */
+  /** createTexture succeeds */
   creatable: boolean;
-  /** TEXTURE_BINDING 으로 셰이더에서 샘플링되는가 */
+  /** Readable from a shader via TEXTURE_BINDING */
   sampleable: boolean;
-  /** RENDER_ATTACHMENT 로 실제 렌더패스가 도는가 */
+  /** A render pass actually runs against it via RENDER_ATTACHMENT */
   renderable: boolean;
-  /** 렌더타겟으로서 블렌딩이 되는가 */
+  /** Blending works when used as a render target */
   blendable: boolean;
-  /** STORAGE_BINDING 으로 컴퓨트에서 write 되는가 */
+  /** Writable from a compute shader via STORAGE_BINDING */
   storageWritable: boolean;
-  /** 4x MSAA 렌더타겟이 되는가 */
+  /** Works as a 4x MSAA render target */
   multisample4x: boolean;
-  /** 각 단계에서 잡힌 에러 메시지 (진단용) */
+  /** Errors captured at each stage, for diagnosis */
   errors: string[];
 }
 
-/** WGSL 컴파일 케이스 하나의 결과 */
+/** Result of one WGSL compilation case */
 export interface ShaderCase {
   id: string;
-  /** 무엇을 검사하는 케이스인지 */
+  /** What this case is probing for */
   description: string;
+  /** Skipped because a required feature is missing */
+  skipped: boolean;
   compiled: boolean;
-  /** 컴파일은 됐는데 파이프라인 생성에서 죽는 경우가 실제로 있다 */
+  /** Compiling can succeed while pipeline creation still fails — it happens */
   pipelineCreated: boolean;
-  /** getCompilationInfo() 의 경고/에러 */
+  /** Warnings and errors from getCompilationInfo() */
   messages: ShaderMessage[];
-  /** 컴파일에 걸린 시간(ms). 셰이더 컴파일이 느린 기기 판별용 */
+  /** Compile time in ms. Identifies devices with slow shader compilation */
   compileMs: number;
 }
 
@@ -91,13 +95,13 @@ export interface ShaderMessage {
   lineNum: number;
 }
 
-/** 선언된 limit 을 실제로 그 값까지 쓸 수 있는지 */
+/** Whether a declared limit can actually be used up to its stated value */
 export interface LimitProbe {
   limit: string;
   declared: number;
-  /** 실제로 할당/생성에 성공한 최대값. 이분탐색으로 찾는다 */
+  /** Highest value that actually allocated, found by bisection */
   achieved: number;
-  /** achieved < declared 이면 선언이 거짓말이라는 뜻 */
+  /** achieved < declared means the declaration was not honored */
   honored: boolean;
   error?: string;
 }
@@ -106,64 +110,66 @@ export interface VerifiedCapabilities {
   formats: FormatSupport[];
   shaders: ShaderCase[];
   limits: LimitProbe[];
-  /** device 를 얻는 것 자체가 실패했는가 */
+  /** The device died partway through — everything after that is meaningless */
   deviceLost: boolean;
   deviceLostReason?: string;
 }
 
-// ── 벤치마크 ────────────────────────────────────────────
+// ── Benchmarks ──────────────────────────────────────────
 
 export interface BenchResult {
   id: string;
   description: string;
-  /** 대표값 (중앙값), ms */
+  /** Representative value (median), in ms */
   medianMs: number;
-  /** 최소값 — 노이즈가 적은 하한 */
+  /** Lowest sample — a noise-free floor */
   minMs: number;
-  /** 반복 측정의 변동계수. 높으면 이 수치를 믿으면 안 된다 */
+  /** Coefficient of variation. High means this number should not be trusted */
   variation: number;
-  /** 벤치가 정의한 단위 처리량 (예: 드로우콜/초, MPixel/초) */
+  /** Throughput in the unit this benchmark defines (draws/s, MPixel/s, ...) */
   throughput?: number;
   throughputUnit?: string;
-  /** GPU 타임스탬프 기반인지, 벽시계 기반인지 */
+  /** Whether this came from GPU timestamps or the wall clock */
   timing: 'timestamp-query' | 'wall-clock';
   samples: number;
+  /** How many unit workloads were run per sample after auto-scaling */
+  repetitions: number;
   failed?: string;
 }
 
 export interface BenchmarkResults {
   results: BenchResult[];
-  /** timestamp-query 를 쓸 수 있었는가 */
+  /** Whether timestamp-query was usable */
   timestampQuery: boolean;
-  /** 전체 벤치에 걸린 실제 시간 */
+  /** Wall-clock time the whole benchmark suite took */
   totalMs: number;
 }
 
-// ── 불일치 ──────────────────────────────────────────────
+// ── Discrepancies ───────────────────────────────────────
 
 export type DiscrepancyKind =
-  | 'format-declared-not-usable'   // feature 는 있다는데 실제로 못 씀
-  | 'format-usable-not-declared'   // 선언에 없는데 실제로는 됨
-  | 'limit-not-honored'            // limit 값까지 실제로 못 씀
-  | 'shader-compile-failure'       // 표준 WGSL 인데 컴파일 실패
-  | 'shader-pipeline-failure'      // 컴파일은 됐는데 파이프라인 생성 실패
-  | 'performance-cliff';           // 같은 작업인데 비정상적으로 느림
+  | 'format-declared-not-usable'   // feature is declared but the format does not work
+  | 'format-usable-not-declared'   // not declared, yet it works anyway
+  | 'limit-not-honored'            // the declared limit cannot actually be reached
+  | 'shader-compile-failure'       // valid WGSL that failed to compile
+  | 'shader-pipeline-failure'      // compiled, but pipeline creation failed
+  | 'performance-cliff';           // same work, anomalously slow or unstable
 
 export interface Discrepancy {
   kind: DiscrepancyKind;
-  /** 어느 항목에서 났는지 (포맷명, limit명, 셰이더 케이스 id) */
+  /** Where it occurred — a format name, limit name, or shader case id */
   subject: string;
   detail: string;
-  /** 심각도 — 'breaking' 은 이 기기에서 코드가 그냥 죽는다는 뜻 */
+  /** 'breaking' means code relying on the declaration will fail on this device */
   severity: 'breaking' | 'degraded' | 'note';
 }
 
-// ── 최종 프로파일 ───────────────────────────────────────
+// ── The profile ─────────────────────────────────────────
 
 export interface AtlasProfile {
   schema: number;
   capturedAt: string;
-  /** 같은 기기+브라우저 조합을 묶기 위한 안정적 해시 */
+  /** Stable hash grouping the same device + browser combination */
   fingerprint: string;
   environment: EnvironmentInfo;
   adapter: AdapterIdentity | null;
@@ -171,23 +177,23 @@ export interface AtlasProfile {
   verified: VerifiedCapabilities | null;
   benchmarks: BenchmarkResults | null;
   discrepancies: Discrepancy[];
-  /** WebGPU 자체를 못 쓴 경우의 사유 */
+  /** Why WebGPU could not be used at all, when that is the case */
   unavailable?: string;
-  /** 프로브 전체 소요 시간 */
+  /** Total time the probe took */
   elapsedMs: number;
 }
 
-// ── 프로브 옵션 ─────────────────────────────────────────
+// ── Probe options ───────────────────────────────────────
 
 export interface ProbeOptions {
-  /** 어느 GPU 를 요청할지. 노트북은 이 값에 따라 다른 칩이 잡힌다 */
+  /** Which GPU to ask for. On laptops this decides which chip you get */
   powerPreference?: GPUPowerPreference;
-  /** 벤치마크를 돌릴지. false 면 능력 검증만 (수 ms 로 끝남) */
+  /** Run benchmarks. false leaves only capability verification, which is fast */
   benchmark?: boolean;
-  /** 벤치 반복 횟수. 높이면 정확하지만 오래 걸린다 */
+  /** Samples per benchmark. More is more accurate and slower */
   benchSamples?: number;
-  /** 진행 상황 콜백 */
+  /** Progress callback */
   onProgress?: (stage: string, ratio: number) => void;
-  /** 검증할 텍스처 포맷을 직접 지정 (기본: 내장 목록 전체) */
+  /** Verify only these texture formats (default: the full built-in list) */
   formats?: string[];
 }

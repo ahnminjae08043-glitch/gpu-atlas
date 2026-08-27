@@ -1,4 +1,4 @@
-// 프로브 오케스트레이션.
+// Probe orchestration.
 
 import type { AtlasProfile, ProbeOptions, VerifiedCapabilities } from '../types.js';
 import { SCHEMA_VERSION } from '../types.js';
@@ -9,7 +9,7 @@ import { probeLimits } from './limits.js';
 import { runBenchmarks } from './bench.js';
 import { analyze } from './discrepancies.js';
 
-/** 단계별 진행 비중 — 벤치가 압도적으로 오래 걸린다 */
+/** Relative weight of each stage — benchmarking dominates */
 const WEIGHTS = { formats: 0.25, shaders: 0.1, limits: 0.15, bench: 0.5 };
 
 export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
@@ -51,7 +51,8 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
 
   const { device, identity, declared, denied, lost } = acquired;
 
-  // 디바이스가 중간에 죽으면 그 뒤 결과는 전부 무의미하다. 감시만 걸어둔다.
+  // If the device dies partway, everything after that point is meaningless.
+  // Just watch for it.
   let deviceLostReason: string | undefined;
   lost.then((info) => {
     deviceLostReason = `${info.reason}: ${info.message}`;
@@ -70,21 +71,21 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
   };
 
   try {
-    onProgress?.('포맷 검증', done);
+    onProgress?.('formats', done);
     verified.formats = await probeFormats(
-      device, declaredFeatures, onlyFormats, step('포맷 검증', WEIGHTS.formats),
+      device, declaredFeatures, onlyFormats, step('formats', WEIGHTS.formats),
     );
     done += WEIGHTS.formats;
 
-    onProgress?.('셰이더 컴파일', done);
+    onProgress?.('shaders', done);
     verified.shaders = await probeShaders(
-      device, declaredFeatures, step('셰이더 컴파일', WEIGHTS.shaders),
+      device, declaredFeatures, step('shaders', WEIGHTS.shaders),
     );
     done += WEIGHTS.shaders;
 
-    onProgress?.('limit 검증', done);
+    onProgress?.('limits', done);
     verified.limits = await probeLimits(
-      device, declared.limits, step('limit 검증', WEIGHTS.limits),
+      device, declared.limits, step('limits', WEIGHTS.limits),
     );
     done += WEIGHTS.limits;
   } catch (e) {
@@ -94,14 +95,14 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
 
   let benchmarks = null;
   if (benchmark && !verified.deviceLost) {
-    onProgress?.('벤치마크', done);
+    onProgress?.('benchmarks', done);
     try {
-      benchmarks = await runBenchmarks(device, benchSamples, step('벤치마크', WEIGHTS.bench));
+      benchmarks = await runBenchmarks(device, benchSamples, step('benchmarks', WEIGHTS.bench));
     } catch (e) {
       verified.deviceLostReason = deviceLostReason ?? describe(e);
     }
   }
-  onProgress?.('완료', 1);
+  onProgress?.('done', 1);
 
   if (deviceLostReason) {
     verified.deviceLost = true;
@@ -112,12 +113,12 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
     verified.formats, verified.shaders, verified.limits, benchmarks, declaredFeatures,
   );
 
-  // device 를 요청할 때 거절당한 것도 불일치다.
+  // Being refused what the adapter advertised is a discrepancy too.
   for (const d of denied) {
     discrepancies.push({
       kind: 'limit-not-honored',
       subject: d,
-      detail: 'adapter 가 신고한 값을 requestDevice 에서 그대로 요구했는데 거절당했다',
+      detail: 'requestDevice refused values the adapter itself advertised',
       severity: 'degraded',
     });
   }
@@ -138,8 +139,8 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
 }
 
 /**
- * 같은 기기+브라우저 조합을 묶기 위한 해시.
- * 개인 식별용이 아니다 — 어댑터 신원과 브라우저 메이저 버전만 쓴다.
+ * Hash grouping the same device + browser combination.
+ * Not an identifier for a person — only adapter identity and browser major.
  */
 function fingerprint(
   browser: string,

@@ -1,9 +1,8 @@
-// GPU 시간 측정.
+// GPU timing.
 //
-// timestamp-query 가 있으면 GPU 가 실제로 그 패스에 쓴 시간을 재고, 없으면
-// 제출부터 완료까지의 벽시계로 폴백한다. 둘은 의미가 다르므로 결과에 어느 쪽인지 남긴다.
-// 브라우저가 스펙터 완화 때문에 타임스탬프 정밀도를 낮춰 놓는 경우가 있어서,
-// 분해능이 쓸모없을 만큼 거칠면 스스로 벽시계로 물러난다.
+// With timestamp-query available this measures the time the GPU actually spent
+// in the pass; without it, it falls back to wall-clock around submission. The
+// two mean different things, so the result records which one produced a number.
 
 export class GpuTimer {
   private querySet: GPUQuerySet | null = null;
@@ -28,14 +27,14 @@ export class GpuTimer {
         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
       });
     } catch {
-      // 생성이 거절되면 조용히 벽시계 모드로 간다.
+      // If creation is refused, quietly drop to wall-clock mode.
       timer.dispose();
       return new GpuTimer(false);
     }
     return timer;
   }
 
-  /** 렌더패스 descriptor 에 넣을 timestampWrites */
+  /** timestampWrites to put on a render pass descriptor */
   writes(): GPURenderPassTimestampWrites | undefined {
     if (!this.querySet) return undefined;
     return {
@@ -45,17 +44,17 @@ export class GpuTimer {
     };
   }
 
-  /** 패스 기록이 끝난 인코더에 resolve 명령을 붙인다 */
+  /** Attach the resolve commands to an encoder whose pass has been recorded */
   resolve(encoder: GPUCommandEncoder): void {
     if (!this.querySet || !this.resolveBuf || !this.readBuf) return;
     encoder.resolveQuerySet(this.querySet, 0, 2, this.resolveBuf, 0);
-    // 직전 read 가 아직 매핑 중이면 복사를 건너뛴다.
+    // Skip the copy while a previous read still holds the buffer mapped.
     if (this.readBuf.mapState === 'unmapped') {
       encoder.copyBufferToBuffer(this.resolveBuf, 0, this.readBuf, 0, 16);
     }
   }
 
-  /** 제출 후 호출. GPU 시간(ms)을 돌려주고, 읽을 수 없으면 null */
+  /** Call after submitting. Returns GPU time in ms, or null if unreadable */
   async read(): Promise<number | null> {
     if (!this.readBuf || this.readBuf.mapState !== 'unmapped') return null;
     try {
@@ -71,16 +70,16 @@ export class GpuTimer {
   }
 
   dispose(): void {
-    try { this.querySet?.destroy(); } catch { /* 이미 정리됨 */ }
-    try { this.resolveBuf?.destroy(); } catch { /* 이미 정리됨 */ }
-    try { this.readBuf?.destroy(); } catch { /* 이미 정리됨 */ }
+    try { this.querySet?.destroy(); } catch { /* already gone */ }
+    try { this.resolveBuf?.destroy(); } catch { /* already gone */ }
+    try { this.readBuf?.destroy(); } catch { /* already gone */ }
     this.querySet = null;
     this.resolveBuf = null;
     this.readBuf = null;
   }
 }
 
-/** 중앙값 */
+/** Median */
 export function median(values: number[]): number {
   if (values.length === 0) return 0;
   const s = [...values].sort((a, b) => a - b);
@@ -88,7 +87,7 @@ export function median(values: number[]): number {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-/** 변동계수 (표준편차/평균). 0.2 를 넘으면 그 수치는 신뢰하기 어렵다 */
+/** Coefficient of variation (stddev/mean). Above ~0.2 the number is not trustworthy */
 export function variation(values: number[]): number {
   if (values.length < 2) return 0;
   const mean = values.reduce((a, b) => a + b, 0) / values.length;

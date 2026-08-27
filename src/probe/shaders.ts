@@ -1,9 +1,10 @@
-// WGSL 컴파일 검증.
+// WGSL compilation checks.
 //
-// 여기 있는 케이스들은 전부 유효한 WGSL 이다. 그런데도 구현체마다 결과가 갈린다 —
-// Chrome 은 Dawn(Tint), Firefox 는 wgpu(naga), Safari 는 자체 컴파일러를 쓰고
-// 각자 다른 방식으로 백엔드 셰이더 언어(HLSL/MSL/SPIR-V)로 번역하기 때문이다.
-// 컴파일 시간도 같이 잰다. 느린 기기에서는 이게 첫 프레임 지연의 주범이다.
+// Every case here is valid WGSL, and implementations still disagree about them.
+// Chrome uses Dawn/Tint, Firefox uses wgpu/naga, Safari has its own compiler,
+// and each translates to a different backend language (HLSL/MSL/SPIR-V).
+// Compile time is measured too — on slow devices it is the main cause of
+// first-frame stalls.
 
 import type { ShaderCase, ShaderMessage } from '../types.js';
 import { capture } from './errors.js';
@@ -12,9 +13,9 @@ interface CaseSpec {
   id: string;
   description: string;
   code: string;
-  /** 컴파일 후 파이프라인까지 만들어봐야 하는 케이스 */
+  /** Cases that also need pipeline creation to be attempted */
   pipeline?: 'compute' | 'render';
-  /** 이 feature 가 없으면 건너뛴다 */
+  /** Skipped when this feature is absent */
   requiresFeature?: string;
 }
 
@@ -27,14 +28,14 @@ const VS = `
 const CASES: CaseSpec[] = [
   {
     id: 'baseline',
-    description: '가장 단순한 렌더 파이프라인 — 다른 결과의 기준선',
+    description: 'The simplest possible render pipeline — a reference point for the rest',
     pipeline: 'render',
     code: `${VS}
 @fragment fn fs() -> @location(0) vec4f { return vec4f(1.); }`,
   },
   {
     id: 'uniform-dynamic-index',
-    description: '유니폼 배열의 동적 인덱싱 — 백엔드에 따라 클램프 코드가 붙거나 느려진다',
+    description: 'Dynamic indexing into a uniform array — backends add clamping code or slow down',
     pipeline: 'render',
     code: `${VS}
 struct Data { items: array<vec4f, 64> };
@@ -46,7 +47,7 @@ struct Data { items: array<vec4f, 64> };
   },
   {
     id: 'nested-loop-break',
-    description: '중첩 루프 + 조건부 break — 제어흐름 평탄화에서 갈리는 지점',
+    description: 'Nested loops with conditional breaks — where control flow flattening diverges',
     pipeline: 'render',
     code: `${VS}
 @fragment fn fs(@builtin(position) pos: vec4f) -> @location(0) vec4f {
@@ -63,7 +64,7 @@ struct Data { items: array<vec4f, 64> };
   },
   {
     id: 'function-pointers',
-    description: 'var<function> 포인터 전달 — naga 와 tint 의 처리 차이가 드러난다',
+    description: 'Passing var<function> pointers — naga and tint handle this differently',
     pipeline: 'render',
     code: `${VS}
 fn bump(p: ptr<function, vec3f>, amount: f32) {
@@ -78,7 +79,7 @@ fn bump(p: ptr<function, vec3f>, amount: f32) {
   },
   {
     id: 'workgroup-atomics',
-    description: '워크그룹 메모리 + 아토믹 + 배리어',
+    description: 'Workgroup memory with atomics and barriers',
     pipeline: 'compute',
     code: `
 var<workgroup> counter: atomic<u32>;
@@ -93,7 +94,7 @@ var<workgroup> counter: atomic<u32>;
   },
   {
     id: 'storage-runtime-array',
-    description: '런타임 크기 배열 + arrayLength — 바인딩 메타데이터 처리 확인',
+    description: 'Runtime-sized array with arrayLength — exercises binding metadata handling',
     pipeline: 'compute',
     code: `
 @group(0) @binding(0) var<storage, read_write> data: array<f32>;
@@ -104,7 +105,7 @@ var<workgroup> counter: atomic<u32>;
   },
   {
     id: 'struct-alignment',
-    description: '중첩 구조체 정렬/스트라이드 — 백엔드 레이아웃 계산이 갈리는 고전적 지점',
+    description: 'Nested struct alignment and stride — a classic source of backend layout bugs',
     pipeline: 'compute',
     code: `
 struct Inner { a: vec3f, b: f32 };
@@ -116,7 +117,7 @@ struct Outer { m: mat4x4f, items: array<Inner, 4>, flag: u32 };
   },
   {
     id: 'override-constants',
-    description: 'override 상수 — 파이프라인 생성 시점 특수화. 지원이 고르지 않았던 기능',
+    description: 'Override constants — pipeline-time specialization, unevenly supported',
     pipeline: 'compute',
     code: `
 override tileSize: u32 = 8u;
@@ -125,7 +126,7 @@ override tileSize: u32 = 8u;
   },
   {
     id: 'textureSampleLevel-uniform',
-    description: '비균일 제어흐름 밖에서의 텍스처 샘플링 — 균일성 분석 구현 차이',
+    description: 'Texture sampling under non-uniform control flow — uniformity analysis differs',
     pipeline: 'render',
     code: `${VS}
 @group(0) @binding(0) var t: texture_2d<f32>;
@@ -140,7 +141,7 @@ override tileSize: u32 = 8u;
   },
   {
     id: 'long-unrolled',
-    description: '큰 셰이더 — 컴파일 시간을 재기 위한 케이스',
+    description: 'A large shader — exists to measure compile time',
     pipeline: 'render',
     code: `${VS}
 @fragment fn fs(@builtin(position) pos: vec4f) -> @location(0) vec4f {
@@ -154,7 +155,7 @@ ${Array.from({ length: 64 }, (_, i) =>
   },
   {
     id: 'f16-arithmetic',
-    description: 'f16 연산 — shader-f16 feature. 모바일 성능의 핵심인데 지원이 갈린다',
+    description: 'f16 arithmetic via shader-f16 — central to mobile performance, unevenly available',
     requiresFeature: 'shader-f16',
     pipeline: 'render',
     code: `enable f16;
@@ -182,11 +183,12 @@ export async function probeShaders(
       out.push({
         id: spec.id,
         description: spec.description,
+        skipped: true,
         compiled: false,
         pipelineCreated: false,
         messages: [{
           type: 'info',
-          message: `${spec.requiresFeature} 미지원으로 건너뜀`,
+          message: `skipped: ${spec.requiresFeature} not supported`,
           lineNum: 0,
         }],
         compileMs: 0,
@@ -204,6 +206,7 @@ async function runCase(device: GPUDevice, spec: CaseSpec): Promise<ShaderCase> {
   const result: ShaderCase = {
     id: spec.id,
     description: spec.description,
+    skipped: false,
     compiled: false,
     pipelineCreated: false,
     messages: [],
@@ -219,8 +222,8 @@ async function runCase(device: GPUDevice, spec: CaseSpec): Promise<ShaderCase> {
     return result;
   }
 
-  // getCompilationInfo 까지 받아야 컴파일이 실제로 끝난 것이다.
-  // createShaderModule 은 많은 구현에서 비동기로 처리된다.
+  // Compilation is not finished until getCompilationInfo() resolves —
+  // createShaderModule is asynchronous under the hood in most implementations.
   let info: GPUCompilationInfo | null = null;
   try {
     info = await mod.value.getCompilationInfo();
@@ -241,7 +244,8 @@ async function runCase(device: GPUDevice, spec: CaseSpec): Promise<ShaderCase> {
   result.compiled = !result.messages.some((m) => m.type === 'error');
   if (!result.compiled) return result;
 
-  // 컴파일이 됐다고 파이프라인이 만들어지는 건 아니다. 실제 번역은 여기서 일어난다.
+  // Compiling does not mean a pipeline can be built — the real translation to
+  // the backend language happens here.
   const built = await capture<GPUComputePipeline | GPURenderPipeline>(device, () => {
     if (spec.pipeline === 'compute') {
       return device.createComputePipelineAsync({

@@ -1,19 +1,20 @@
-// 렌더링 마이크로벤치.
+// Rendering microbenchmarks.
 //
-// 목적은 "이 GPU 가 몇 점이다" 같은 종합점수가 아니라, 어느 축에서 무너지는지를
-// 분리해서 보는 것이다. 드로우콜이 싼데 필레이트가 낮은 기기와 그 반대인 기기는
-// 완전히 다른 최적화를 요구하는데, 종합점수는 그걸 뭉개버린다.
+// The goal is not a single score but knowing which axis a device falls apart on.
+// A device that is cheap on draw calls but weak on fill rate needs the opposite
+// optimization from one that is the reverse, and a composite score erases that.
 //
-// 측정에서 가장 조심할 두 가지:
+// Two things matter most for these numbers to mean anything:
 //
-// 1. 타임스탬프 양자화. 브라우저는 스펙터 완화 때문에 timestamp-query 결과를
-//    수십~수백 마이크로초 단위로 반올림한다. 그보다 짧게 끝나는 작업은 전부
-//    같은 값으로 뭉개져서, 서로 다른 벤치가 똑같은 수치를 뱉는다.
-// 2. 드로우콜/상태전환 비용의 본질은 브라우저 검증과 드라이버 호출이라
-//    GPU 타임스탬프에는 거의 잡히지 않는다. 이 계열은 벽시계로 잰다.
+// 1. Timestamp quantization. Browsers round timestamp-query results into coarse
+//    buckets as a Spectre mitigation — tens to hundreds of microseconds. Work
+//    shorter than one bucket collapses to the same value, so unrelated
+//    benchmarks report identical numbers.
+// 2. Draw call and state change cost lives in browser validation and driver
+//    calls, which barely register on GPU timestamps. That family is wall-clock.
 //
-// 그래서 각 벤치는 "단위 작업"만 정의하고, 실제 반복 횟수는 측정 시간이
-// 양자화 단위를 충분히 넘을 때까지 자동으로 올린다.
+// So each benchmark defines only a unit of work, and the repetition count is
+// raised automatically until the measurement clears the quantization bucket.
 
 import type { BenchResult, BenchmarkResults } from '../types.js';
 import { GpuTimer, median, variation } from './timer.js';
@@ -22,13 +23,13 @@ import { dispose } from './errors.js';
 const TARGET = 1024;
 const WARMUP = 3;
 
-/** 이 시간을 넘도록 반복 횟수를 올린다. 양자화 단위의 수십 배를 확보하는 것이 목적 */
+/** Scale repetitions until measurements exceed this, to clear quantization */
 const TARGET_MS = 10;
-/** 반복 배수 상한 — 느린 기기에서 벤치가 끝나지 않는 걸 막는다 */
+/** Cap on the repetition multiplier, so slow devices still finish */
 const MAX_REPS = 2048;
 
 interface BenchCtx {
-  /** reps 배만큼 단위 작업을 기록한다 */
+  /** Record `reps` times the unit workload */
   record(encoder: GPUCommandEncoder, reps: number, writes?: GPURenderPassTimestampWrites): void;
   dispose?(): void;
 }
@@ -36,10 +37,10 @@ interface BenchCtx {
 interface BenchSpec {
   id: string;
   description: string;
-  /** reps=1 일 때의 작업량 */
+  /** Workload at reps = 1 */
   unitWorkload: number;
   unit: string;
-  /** 드로우콜 계열은 GPU 시간으로 재면 의미가 없다 */
+  /** Draw call family is meaningless when measured as GPU time */
   timingMode: 'gpu-preferred' | 'wall-clock-only';
   setup(device: GPUDevice, view: GPUTextureView): Promise<BenchCtx>;
 }
@@ -50,7 +51,8 @@ const FULLSCREEN_VS = `
   return vec4f(p[i], 0., 1.);
 }`;
 
-// 모든 정점을 같은 위치로 보내 삼각형을 퇴화시킨다. 래스터 비용 없이 드로우콜 비용만 남는다.
+// Sending every vertex to the same position degenerates the triangle, leaving
+// draw call cost without any rasterization.
 const DEGENERATE_VS = `
 @vertex fn vs() -> @builtin(position) vec4f {
   return vec4f(2., 2., 0.5, 1.);
@@ -65,7 +67,7 @@ const TRIS_PER_REP = 100_000;
 const SPECS: BenchSpec[] = [
   {
     id: 'drawcall-overhead',
-    description: '빈 드로우콜 — 브라우저 검증과 드라이버 호출 비용',
+    description: 'Empty draw calls — browser validation and driver call cost',
     unitWorkload: DRAWS_PER_REP,
     unit: 'draws/s',
     timingMode: 'wall-clock-only',
@@ -89,14 +91,14 @@ const SPECS: BenchSpec[] = [
   },
   {
     id: 'pipeline-switch',
-    description: '드로우마다 파이프라인 8개를 번갈아 — 상태 전환 비용',
+    description: 'Alternating between 8 pipelines per draw — state change cost',
     unitWorkload: DRAWS_PER_REP,
     unit: 'switches/s',
     timingMode: 'wall-clock-only',
     setup: async (device, view) => {
       const pipelines: GPURenderPipeline[] = [];
       for (let i = 0; i < 8; i++) {
-        // 셰이더를 조금씩 다르게 만들어 실제로 다른 파이프라인이 되게 한다.
+        // Vary the shader slightly so these really are distinct pipelines.
         const module = device.createShaderModule({
           code: DEGENERATE_VS + `
 @fragment fn fs() -> @location(0) vec4f { return vec4f(${(i / 8).toFixed(3)}, 0.5, 0.75, 1.); }`,
@@ -122,7 +124,7 @@ const SPECS: BenchSpec[] = [
   },
   {
     id: 'bindgroup-switch',
-    description: '드로우마다 바인드그룹 64개를 번갈아 — 리소스 바인딩 비용',
+    description: 'Alternating between 64 bind groups per draw — resource binding cost',
     unitWorkload: DRAWS_PER_REP,
     unit: 'binds/s',
     timingMode: 'wall-clock-only',
@@ -171,7 +173,7 @@ ${DEGENERATE_VS}
   },
   {
     id: 'fillrate',
-    description: `${TARGET}x${TARGET} 풀스크린 오버드로우 — 프래그먼트 처리량`,
+    description: `${TARGET}x${TARGET} fullscreen overdraw — fragment throughput`,
     unitWorkload: TARGET * TARGET * 8,
     unit: 'MPixel/s',
     timingMode: 'gpu-preferred',
@@ -195,7 +197,7 @@ ${DEGENERATE_VS}
   },
   {
     id: 'fragment-alu',
-    description: '픽셀당 무거운 산술 — 셰이더 연산 성능 (필레이트와 분리해서 본다)',
+    description: 'Heavy per-pixel arithmetic — shader math, separated from fill rate',
     unitWorkload: TARGET * TARGET,
     unit: 'MPixel/s',
     timingMode: 'gpu-preferred',
@@ -229,7 +231,7 @@ ${DEGENERATE_VS}
   },
   {
     id: 'triangle-throughput',
-    description: '작은 삼각형 대량 — 지오메트리 처리량',
+    description: 'Many small triangles — geometry throughput',
     unitWorkload: TRIS_PER_REP,
     unit: 'MTri/s',
     timingMode: 'gpu-preferred',
@@ -239,7 +241,7 @@ ${DEGENERATE_VS}
 @vertex fn vs(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4f {
   let tri = vi / 3u;
   let corner = vi % 3u;
-  // 삼각형을 격자에 흩뿌린다. 화면 안에 있어야 컬링되지 않는다.
+  // Scatter triangles across a grid — they must stay on screen to avoid culling.
   let gx = f32(tri % 1000u) / 1000. * 2. - 1.;
   let gy = f32((tri / 1000u) % 100u) / 100. * 2. - 1.;
   var off = array<vec2f, 3>(vec2f(0., 0.), vec2f(0.0015, 0.), vec2f(0., 0.0015));
@@ -256,7 +258,7 @@ ${SOLID_FS}`,
         record(encoder, reps, writes) {
           const pass = beginPass(encoder, view, writes);
           pass.setPipeline(pipeline);
-          // 한 드로우가 충분히 무거워서 드로우콜 오버헤드는 묻힌다.
+          // Each draw is heavy enough that draw call overhead is buried.
           for (let i = 0; i < reps; i++) pass.draw(TRIS_PER_REP * 3);
           pass.end();
         },
@@ -265,7 +267,7 @@ ${SOLID_FS}`,
   },
   {
     id: 'texture-sampling',
-    description: '픽셀당 텍스처 샘플 32회 — 텍스처 대역폭',
+    description: '32 texture samples per pixel — texture bandwidth',
     unitWorkload: TARGET * TARGET * 32,
     unit: 'GSample/s',
     timingMode: 'gpu-preferred',
@@ -288,7 +290,7 @@ ${FULLSCREEN_VS}
   var acc = vec4f(0.);
   let base = pos.xy / ${TARGET}.;
   for (var i = 0u; i < 32u; i++) {
-    // 캐시에 다 얹히지 않도록 좌표를 흩는다.
+    // Spread the coordinates so this does not all sit in cache.
     let uv = fract(base + vec2f(f32(i) * 0.137, f32(i) * 0.379));
     acc += textureSampleLevel(t, s, uv, 0.);
   }
@@ -368,19 +370,20 @@ async function measure(
     variation: 0,
     timing: 'wall-clock',
     samples: 0,
+    repetitions: 0,
   };
 
   let ctx: BenchCtx;
   try {
     ctx = await spec.setup(device, view);
   } catch (e) {
-    return { ...base, failed: `setup 실패: ${describe(e)}` };
+    return { ...base, failed: `setup failed: ${describe(e)}` };
   }
 
   const useGpuTime = spec.timingMode === 'gpu-preferred' && timer.available;
 
   try {
-    // 워밍업 — 첫 실행에는 셰이더 번역과 리소스 준비 비용이 섞인다.
+    // Warm up — the first run mixes in shader translation and resource setup.
     for (let i = 0; i < WARMUP; i++) {
       const enc = device.createCommandEncoder();
       ctx.record(enc, 1);
@@ -388,14 +391,14 @@ async function measure(
     }
     await device.queue.onSubmittedWorkDone();
 
-    // 반복 횟수 자동 조정.
-    // 측정값이 TARGET_MS 를 넘어야 타임스탬프 양자화에 뭉개지지 않는다.
+    // Auto-scale the repetition count. Measurements have to exceed TARGET_MS or
+    // timestamp quantization flattens them.
     let reps = 1;
     for (let attempt = 0; attempt < 8; attempt++) {
-      const { ms: t } = await once(device, ctx, reps, timer, useGpuTime);
-      if (t >= TARGET_MS || reps >= MAX_REPS) break;
-      // 목표에 도달할 배수를 추정하되 한 번에 너무 뛰지 않게 제한한다.
-      const factor = t > 0.001 ? Math.ceil(TARGET_MS / t) : 8;
+      const { ms } = await once(device, ctx, reps, timer, useGpuTime);
+      if (ms >= TARGET_MS || reps >= MAX_REPS) break;
+      // Estimate the multiplier needed, but do not jump too far at once.
+      const factor = ms > 0.001 ? Math.ceil(TARGET_MS / ms) : 8;
       reps = Math.min(MAX_REPS, reps * Math.max(2, Math.min(16, factor)));
     }
 
@@ -410,7 +413,7 @@ async function measure(
     ctx.dispose?.();
 
     if (times.length === 0) {
-      return { ...base, failed: '측정값을 하나도 얻지 못했다' };
+      return { ...base, failed: 'no measurements were obtained' };
     }
 
     const med = median(times);
@@ -422,6 +425,7 @@ async function measure(
       variation: round(variation(times), 3),
       timing: gpuTimed > times.length / 2 ? 'timestamp-query' : 'wall-clock',
       samples: times.length,
+      repetitions: reps,
     };
 
     if (med > 0) {
@@ -433,11 +437,11 @@ async function measure(
     return result;
   } catch (e) {
     ctx.dispose?.();
-    return { ...base, failed: `실행 실패: ${describe(e)}` };
+    return { ...base, failed: `run failed: ${describe(e)}` };
   }
 }
 
-/** 한 번 실행하고 소요 시간(ms)과 그게 GPU 시간인지를 돌려준다 */
+/** Run once, returning elapsed ms and whether that came from GPU timestamps */
 async function once(
   device: GPUDevice,
   ctx: BenchCtx,

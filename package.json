@@ -1,7 +1,7 @@
 {
   "name": "gpu-atlas",
   "version": "0.0.1",
-  "description": "WebGPU가 실제로 무엇을 할 수 있는지 기기에서 직접 측정한다 — 선언된 limits가 아니라 실측 기준으로.",
+  "description": "What WebGPU actually does on this device — verified by creating the resources and running the passes, not by reading declared limits.",
   "type": "module",
   "license": "MIT",
   "main": "./dist/gpu-atlas.js",

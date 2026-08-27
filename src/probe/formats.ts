@@ -1,8 +1,9 @@
-// 텍스처 포맷 실검증.
+// Texture format verification.
 //
-// adapter.features 에 'texture-compression-bc' 가 있다는 것과, 그 기기에서 실제로
-// bc7 텍스처를 만들어 샘플링할 수 있다는 것은 별개의 주장이다. 여기서는 후자만 믿는다.
-// 모든 항목은 실제로 리소스를 만들고, 파이프라인을 세우고, 렌더패스를 돌려서 판정한다.
+// "adapter.features contains texture-compression-bc" and "this device can create
+// and sample a bc7 texture" are separate claims. Only the second one is believed
+// here. Every entry is decided by actually creating the resource, building the
+// pipeline, and running the pass.
 
 import type { FormatSupport } from '../types.js';
 import { FORMATS, sampleTypeOf, wgslTextureType, type FormatMeta } from './format-table.js';
@@ -14,7 +15,7 @@ const VERTEX_WGSL = `
   return vec4f(p[i], 0., 1.);
 }`;
 
-/** 검증 중 결과를 받아낼 공용 컬러 타겟 */
+/** Shared color target that verification results get drawn into */
 interface Scratch {
   target: GPUTexture;
   view: GPUTextureView;
@@ -68,7 +69,7 @@ async function probeOne(
 
   const [w, h] = meta.block ?? [4, 4];
 
-  // 1. 만들 수 있는가
+  // 1. Can it be created at all
   const created = await capture(device, () =>
     device.createTexture({
       size: [w, h],
@@ -79,20 +80,20 @@ async function probeOne(
   result.creatable = created.ok;
   if (!created.ok) {
     result.errors.push(...prefix('create', created.errors));
-    // 만들지도 못하면 나머지는 볼 것도 없다.
+    // Nothing else is worth checking if it cannot even be created.
     return result;
   }
   const tex = created.value!;
 
-  // 2. 셰이더에서 읽을 수 있는가
+  // 2. Can a shader read it
   const sampled = await probeSampleable(device, meta, tex, scratch);
   result.sampleable = sampled.ok;
   if (!sampled.ok) result.errors.push(...prefix('sample', sampled.errors));
   dispose(tex);
 
-  // 3. 렌더 타겟이 되는가 / 4. 블렌딩이 되는가
+  // 3. Does it work as a render target / 4. does blending work
   if (meta.kind === 'compressed') {
-    // 압축 포맷은 렌더 타겟이 될 수 없다. 시도 자체가 의미 없다.
+    // Compressed formats cannot be render targets. Nothing to try.
   } else if (meta.kind === 'depth') {
     const r = await probeDepthRenderable(device, meta);
     result.renderable = r.ok;
@@ -109,7 +110,7 @@ async function probeOne(
     }
   }
 
-  // 5. 스토리지 텍스처로 쓸 수 있는가
+  // 5. Does it work as a storage texture
   if (meta.kind === 'color') {
     const s = await probeStorage(device, meta);
     result.storageWritable = s.ok;
@@ -126,7 +127,7 @@ async function probeOne(
   return result;
 }
 
-// ── 개별 검증 ───────────────────────────────────────────
+// ── Individual checks ───────────────────────────────────
 
 async function probeSampleable(
   device: GPUDevice,
@@ -162,8 +163,8 @@ async function probeSampleable(
       fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
     });
 
-    // depth 와 stencil 을 겸하는 포맷은 뷰에서 aspect 를 골라줘야 한다.
-    // 그냥 createView() 하면 두 aspect 가 다 선택돼서 바인딩이 거절된다.
+    // Formats carrying both depth and stencil need an explicit aspect on the
+    // view. A plain createView() selects both and the binding is rejected.
     const viewDesc: GPUTextureViewDescriptor = {};
     if (meta.hasDepth && meta.hasStencil) viewDesc.aspect = 'depth-only';
 
@@ -239,7 +240,7 @@ async function probeColorRenderable(
     pass.draw(3);
     pass.end();
     device.queue.submit([enc.finish()]);
-    // 텍스처는 제출된 작업이 끝난 뒤에 정리해야 한다.
+    // The texture can only be released once the submitted work has finished.
     device.queue.onSubmittedWorkDone().then(() => dispose(tex));
     return true;
   }, true);
@@ -265,7 +266,7 @@ async function probeDepthRenderable(
     }
 
     const module = device.createShaderModule({ code: VERTEX_WGSL });
-    // 컬러 타겟 없이 깊이만 쓰는 파이프라인 — fragment 스테이지를 생략한다.
+    // Depth-only pipeline — no color target, so the fragment stage is omitted.
     const pipeline = device.createRenderPipeline({
       layout: 'auto',
       vertex: { module, entryPoint: 'vs' },
@@ -410,7 +411,7 @@ async function probeMultisample(
   }, true);
 }
 
-// ── WGSL 생성 ───────────────────────────────────────────
+// ── WGSL generation ─────────────────────────────────────
 
 function sampleFragmentWGSL(meta: FormatMeta, needsSampler: boolean): string {
   const texType = wgslTextureType(meta);
@@ -419,10 +420,10 @@ function sampleFragmentWGSL(meta: FormatMeta, needsSampler: boolean): string {
 
   let body: string;
   if (needsSampler) {
-    // 압축 포맷은 textureLoad 를 못 쓴다. 샘플링만 가능하다.
+    // textureLoad is not available for compressed formats — only sampling is.
     body = 'return textureSample(t, s, vec2f(0.5, 0.5));';
   } else if (meta.kind === 'depth' && meta.hasDepth) {
-    // texture_depth_2d 의 textureLoad 는 스칼라 f32 를 준다.
+    // textureLoad on texture_depth_2d yields a scalar f32.
     body = 'let v = textureLoad(t, vec2i(0, 0), 0);\n  return vec4f(v, 0., 0., 1.);';
   } else if (meta.texel === 'f32') {
     body = 'return textureLoad(t, vec2i(0, 0), 0);';
@@ -439,7 +440,7 @@ ${samplerDecl}
 }
 
 function colorFragmentWGSL(meta: FormatMeta): string {
-  // 프래그먼트 출력 타입은 렌더 타겟 포맷의 텍셀 타입과 맞아야 한다.
+  // The fragment output type has to match the render target's texel type.
   if (meta.texel === 'u32') {
     return `
 @fragment fn fs() -> @location(0) vec4u {

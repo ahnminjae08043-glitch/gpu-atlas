@@ -1,13 +1,14 @@
-// limit 실검증.
+// Limit verification.
 //
-// adapter.limits.maxBufferSize 가 2GB 라고 신고해도, 실제로 그 크기를 할당하면
-// 거절당하는 기기가 흔하다. 선언값을 그대로 믿고 짠 코드가 특정 기기에서만
-// 죽는 전형적인 이유다. 여기서는 선언값부터 시작해 이분탐색으로 진짜 상한을 찾는다.
+// adapter.limits.maxBufferSize may report 2GB while allocating that much gets
+// refused — which is the classic reason code written against declared values
+// dies on one specific device. This starts from the declared value and bisects
+// down to the real ceiling.
 
 import type { LimitProbe } from '../types.js';
 import { dispose, works } from './errors.js';
 
-/** 이분탐색 횟수 상한 — 정밀도와 소요시간의 절충 */
+/** Bisection step cap — trades precision against how long the probe takes */
 const BISECT_STEPS = 10;
 
 type Tester = (device: GPUDevice, value: number) => Promise<{ ok: boolean; errors: string[] }>;
@@ -15,7 +16,7 @@ type Tester = (device: GPUDevice, value: number) => Promise<{ ok: boolean; error
 interface LimitSpec {
   limit: string;
   test: Tester;
-  /** 이분탐색의 하한 (이 값은 반드시 된다고 보는 값) */
+  /** Bisection floor — a value assumed to work */
   floor: number;
 }
 
@@ -26,7 +27,7 @@ const SPECS: LimitSpec[] = [
     test: (device, size) =>
       works(device, () => {
         const b = device.createBuffer({ size: align4(size), usage: GPUBufferUsage.STORAGE });
-        // 즉시 해제한다. 검증하려는 건 할당이 되느냐지, 유지할 수 있느냐가 아니다.
+        // Release immediately — the question is whether it allocates, not whether it can be held.
         queueMicrotask(() => dispose(b));
         return b;
       }),
@@ -84,7 +85,7 @@ const SPECS: LimitSpec[] = [
     floor: 2048,
     test: (device, size) =>
       works(device, () => {
-        // [n, n] 으로 잡으면 n=16384 에서 1GB 가 된다. 폭을 재는 게 목적이므로 높이는 1 로 둔다.
+        // [n, n] would be 1GB at n=16384. Width is what is being measured, so height stays 1.
         const t = device.createTexture({
           size: [Math.floor(size), 1],
           format: 'rgba8unorm',
@@ -164,7 +165,7 @@ export async function probeLimits(
     const declaredValue = declared[spec.limit];
     if (typeof declaredValue !== 'number' || declaredValue <= 0) continue;
 
-    // 먼저 선언값 그대로 시도한다. 되면 더 볼 것 없다.
+    // Try the declared value as-is first. If it works, there is nothing to find.
     const full = await spec.test(device, declaredValue);
     if (full.ok) {
       out.push({
@@ -176,28 +177,28 @@ export async function probeLimits(
       continue;
     }
 
-    // 선언값이 거절됐다. 실제 상한을 찾는다.
+    // The declared value was refused. Find the real ceiling.
     const achieved = await bisect(device, spec, Math.min(spec.floor, declaredValue), declaredValue);
     out.push({
       limit: spec.limit,
       declared: declaredValue,
       achieved,
       honored: false,
-      error: full.errors[0] ?? '알 수 없는 이유로 거절됨',
+      error: full.errors[0] ?? 'refused for an unreported reason',
     });
   }
 
   return out;
 }
 
-/** lo 는 된다고 보고, hi 는 안 된다고 확인된 상태에서 진짜 경계를 찾는다 */
+/** lo is assumed to work and hi is known not to — find the boundary between them */
 async function bisect(
   device: GPUDevice,
   spec: LimitSpec,
   lo: number,
   hi: number,
 ): Promise<number> {
-  // 하한조차 안 되면 아래로 더 내려가야 한다.
+  // If even the floor fails, walk down until something works.
   let low = lo;
   let loOk = (await spec.test(device, low)).ok;
   while (!loOk && low > 1) {

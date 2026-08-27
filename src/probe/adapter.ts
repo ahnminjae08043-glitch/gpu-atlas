@@ -1,4 +1,4 @@
-// 어댑터/디바이스 확보와 환경 수집.
+// Acquiring the adapter and device, plus environment collection.
 
 import type {
   AdapterIdentity,
@@ -11,7 +11,7 @@ export interface Acquired {
   device: GPUDevice;
   identity: AdapterIdentity;
   declared: DeclaredCapabilities;
-  /** 요청한 feature/limit 중 실제로 받지 못한 것 */
+  /** Features and limits that were requested but refused */
   denied: string[];
   lost: Promise<GPUDeviceLostInfo>;
 }
@@ -27,7 +27,7 @@ export async function acquire(
   powerPreference?: GPUPowerPreference,
 ): Promise<Acquired> {
   if (typeof navigator === 'undefined' || !navigator.gpu) {
-    throw new WebGPUUnavailable('navigator.gpu 가 없다 — 이 브라우저는 WebGPU 를 지원하지 않는다');
+    throw new WebGPUUnavailable('navigator.gpu is missing — this browser has no WebGPU');
   }
 
   const adapter = await navigator.gpu.requestAdapter(
@@ -35,13 +35,13 @@ export async function acquire(
   );
   if (!adapter) {
     throw new WebGPUUnavailable(
-      'requestAdapter 가 null 을 반환했다 — WebGPU API 는 있지만 쓸 수 있는 어댑터가 없다',
+      'requestAdapter returned null — the WebGPU API exists but no usable adapter does',
     );
   }
 
   const identity = await readIdentity(adapter, powerPreference);
 
-  // 선언된 모든 feature/limit 을 요청한다. 여기서 거절당하는 것 자체가 데이터다.
+  // Ask for every declared feature and limit. Being refused here is itself data.
   const features = [...adapter.features] as GPUFeatureName[];
   const limits = limitsToRecord(adapter.limits);
 
@@ -49,13 +49,13 @@ export async function acquire(
   let device = await tryDevice(adapter, features, limits);
 
   if (!device) {
-    // limits 를 통째로 요구하면 거절하는 구현이 있다. feature 만 요청해본다.
-    denied.push('requiredLimits(전체)');
+    // Some implementations refuse the full limits block. Try features alone.
+    denied.push('requiredLimits (all)');
     device = await tryDevice(adapter, features, undefined);
   }
   if (!device) {
-    // feature 도 문제면 하나씩 빼면서 살아남는 조합을 찾는다.
-    denied.push('requiredFeatures(전체)');
+    // Features are a problem too — find the subset that survives.
+    denied.push('requiredFeatures (all)');
     const survivors: GPUFeatureName[] = [];
     for (const f of features) {
       const d = await tryDevice(adapter, [...survivors, f], undefined);
@@ -70,7 +70,7 @@ export async function acquire(
   }
   if (!device) {
     throw new WebGPUUnavailable(
-      'requestDevice 가 계속 실패했다 — 어댑터는 있는데 디바이스를 만들 수 없다',
+      'requestDevice kept failing — there is an adapter but no device can be created from it',
     );
   }
 
@@ -101,7 +101,7 @@ async function readIdentity(
   adapter: GPUAdapter,
   powerPreference?: GPUPowerPreference,
 ): Promise<AdapterIdentity> {
-  // 최신 스펙은 동기 프로퍼티, 구버전은 requestAdapterInfo(). 둘 다 받는다.
+  // Current spec exposes a sync property; older builds had requestAdapterInfo().
   let info: GPUAdapterInfo | undefined = (adapter as { info?: GPUAdapterInfo }).info;
   if (!info) {
     const legacy = adapter as unknown as { requestAdapterInfo?: () => Promise<GPUAdapterInfo> };
@@ -119,7 +119,7 @@ async function readIdentity(
     architecture: info?.architecture ?? '',
     device: info?.device ?? '',
     description: info?.description ?? '',
-    // isFallbackAdapter 는 adapter 와 info 양쪽에 있었던 이력이 있다.
+    // isFallbackAdapter has lived on both the adapter and its info over time.
     isFallbackAdapter:
       (adapter as { isFallbackAdapter?: boolean }).isFallbackAdapter ??
       (info as { isFallbackAdapter?: boolean } | undefined)?.isFallbackAdapter ??
@@ -130,7 +130,7 @@ async function readIdentity(
 
 function limitsToRecord(limits: GPUSupportedLimits): Record<string, number> {
   const out: Record<string, number> = {};
-  // GPUSupportedLimits 는 일반 객체가 아니라 프로토타입에 getter 가 달려 있다.
+  // GPUSupportedLimits is not a plain object — the values are prototype getters.
   for (const key of supportedLimitKeys(limits)) {
     const v = (limits as unknown as Record<string, unknown>)[key];
     if (typeof v === 'number' && Number.isFinite(v)) out[key] = v;
@@ -159,7 +159,7 @@ function safePreferredFormat(): string {
   }
 }
 
-// ── 환경 ────────────────────────────────────────────────
+// ── Environment ─────────────────────────────────────────
 
 export async function readEnvironment(): Promise<EnvironmentInfo> {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -183,7 +183,7 @@ export async function readEnvironment(): Promise<EnvironmentInfo> {
       }
       if (high.platformVersion) platform = `${platform} ${high.platformVersion}`;
     } catch {
-      // 권한/구현 문제로 실패해도 UA 파싱으로 넘어간다.
+      // Permission or implementation gaps just fall through to UA parsing.
     }
   }
 
@@ -202,7 +202,7 @@ export async function readEnvironment(): Promise<EnvironmentInfo> {
 }
 
 function parseUA(ua: string): { browser: string; version: string } {
-  // 순서가 중요하다 — Edge 는 Chrome 을, Chrome 은 Safari 를 UA 에 포함한다.
+  // Order matters — Edge's UA contains Chrome, and Chrome's contains Safari.
   const patterns: Array<[string, RegExp]> = [
     ['Edge', /Edg(?:e|A|iOS)?\/([\d.]+)/],
     ['Opera', /OPR\/([\d.]+)/],
@@ -217,7 +217,7 @@ function parseUA(ua: string): { browser: string; version: string } {
   return { browser: 'unknown', version: '' };
 }
 
-// UA-CH 타입 (lib.dom 에 아직 없다)
+// UA-CH types (not yet in lib.dom)
 interface NavigatorUAData {
   brands: Array<{ brand: string; version: string }>;
   mobile: boolean;

@@ -1,9 +1,10 @@
-// WebGPU 에러 수집.
+// WebGPU error capture.
 //
-// WebGPU 는 대부분의 실패를 예외로 던지지 않고 에러 스코프로 흘린다.
-// 그래서 "createTexture 가 성공했다"는 것만으로는 아무것도 보장되지 않는다.
-// 여기서 세 종류 스코프를 전부 걸고, 큐가 실제로 일을 끝낼 때까지 기다린 뒤에
-// 판정한다. 이 순서를 지키지 않으면 실패가 조용히 새어나간다.
+// WebGPU reports most failures through error scopes rather than exceptions, so
+// "createTexture returned an object" guarantees nothing on its own. This wraps a
+// call in all three scope types and, where it matters, waits for the queue to
+// actually finish the work before judging. Skipping that order lets failures
+// slip through silently.
 
 const SCOPES: GPUErrorFilter[] = ['validation', 'out-of-memory', 'internal'];
 
@@ -14,9 +15,9 @@ export interface Captured<T> {
 }
 
 /**
- * fn 을 에러 스코프로 감싸 실행한다.
- * @param settle true 면 큐가 제출된 작업을 끝낼 때까지 기다린 뒤 에러를 걷는다.
- *               실제로 그려보는 검증에는 반드시 필요하다.
+ * Run fn inside error scopes.
+ * @param settle wait for submitted work to complete before collecting errors.
+ *               Required whenever the check actually draws something.
  */
 export async function capture<T>(
   device: GPUDevice,
@@ -42,13 +43,13 @@ export async function capture<T>(
     }
   }
 
-  // push 의 역순으로 pop 해야 한다.
+  // Scopes must be popped in reverse order of pushing.
   for (let i = SCOPES.length - 1; i >= 0; i--) {
     try {
       const err = await device.popErrorScope();
       if (err) errors.push(`${SCOPES[i]}: ${err.message}`);
     } catch (e) {
-      // 디바이스가 이미 죽었으면 popErrorScope 자체가 거부된다.
+      // If the device is already gone, popErrorScope itself rejects.
       errors.push(`${SCOPES[i]}-scope-failed: ${describe(e)}`);
     }
   }
@@ -56,7 +57,7 @@ export async function capture<T>(
   return { value, errors, ok: errors.length === 0 && value !== null };
 }
 
-/** 성공/실패만 필요할 때 */
+/** When only success or failure matters */
 export async function works(
   device: GPUDevice,
   fn: () => unknown | Promise<unknown>,
@@ -64,7 +65,7 @@ export async function works(
 ): Promise<{ ok: boolean; errors: string[] }> {
   const r = await capture(device, async () => {
     const v = await fn();
-    // undefined 를 반환하는 함수도 성공으로 치려면 non-null 값이 필요하다.
+    // capture() treats null as failure, so functions returning undefined need a value.
     return v === undefined ? true : v;
   }, settle);
   return { ok: r.ok, errors: r.errors };
@@ -75,13 +76,13 @@ function describe(e: unknown): string {
   return String(e);
 }
 
-/** 만들어진 GPU 리소스를 안전하게 정리 */
+/** Release GPU resources without caring whether they are already gone */
 export function dispose(...resources: Array<{ destroy?: () => void } | null | undefined>): void {
   for (const r of resources) {
     try {
       r?.destroy?.();
     } catch {
-      // 이미 파괴됐거나 디바이스가 죽은 경우 — 무시해도 안전하다.
+      // Already destroyed, or the device died. Either way, nothing to do.
     }
   }
 }
