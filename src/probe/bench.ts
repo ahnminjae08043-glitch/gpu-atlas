@@ -12,6 +12,13 @@
 //    benchmarks report identical numbers.
 // 2. Draw call and state change cost lives in browser validation and driver
 //    calls, which barely register on GPU timestamps. That family is wall-clock.
+// 3. Repeated overdraw is not a reliable way to create fragment work. A
+//    tile-based deferred GPU (Apple silicon, PowerVR) discards occluded opaque
+//    draws before shading them, so stacking identical fullscreen passes
+//    measures almost nothing there while measuring the full cost elsewhere —
+//    the same benchmark ends up meaning different things per architecture.
+//    Additive blending makes every draw contribute to the result, which
+//    removes the option of discarding it.
 //
 // So each benchmark defines only a unit of work, and the repetition count is
 // raised automatically until the measurement clears the quantization bucket.
@@ -70,6 +77,18 @@ const DEGENERATE_VS = `
 
 const SOLID_FS = `
 @fragment fn fs() -> @location(0) vec4f { return vec4f(0.25, 0.5, 0.75, 1.); }`;
+
+/**
+ * Additive blending, used by every overdraw-based benchmark.
+ *
+ * Without it a deferred renderer is free to drop all but the last draw, since
+ * an opaque fragment fully replaces what is under it. Accumulating means each
+ * draw changes the result and none of them can be skipped.
+ */
+const ACCUMULATE: GPUBlendState = {
+  color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+  alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+};
 
 const DRAWS_PER_REP = 2_000;
 const TRIS_PER_REP = 100_000;
@@ -183,7 +202,7 @@ ${DEGENERATE_VS}
   },
   {
     id: 'fillrate',
-    description: `${TARGET}x${TARGET} fullscreen overdraw — fragment throughput`,
+    description: `${TARGET}x${TARGET} fullscreen overdraw, blended — fragment throughput`,
     unitWorkload: TARGET * TARGET * 8,
     unit: 'MPixel/s',
     timingMode: 'gpu-preferred',
@@ -192,7 +211,11 @@ ${DEGENERATE_VS}
       const pipeline = await device.createRenderPipelineAsync({
         layout: 'auto',
         vertex: { module, entryPoint: 'vs' },
-        fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
+        fragment: {
+          module,
+          entryPoint: 'fs',
+          targets: [{ format: 'rgba8unorm', blend: ACCUMULATE }],
+        },
       });
       return {
         record(encoder, reps, writes) {
@@ -227,7 +250,11 @@ ${DEGENERATE_VS}
       const pipeline = await device.createRenderPipelineAsync({
         layout: 'auto',
         vertex: { module, entryPoint: 'vs' },
-        fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
+        fragment: {
+          module,
+          entryPoint: 'fs',
+          targets: [{ format: 'rgba8unorm', blend: ACCUMULATE }],
+        },
       });
       return {
         record(encoder, reps, writes) {
@@ -310,7 +337,11 @@ ${FULLSCREEN_VS}
       const pipeline = await device.createRenderPipelineAsync({
         layout: 'auto',
         vertex: { module, entryPoint: 'vs' },
-        fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
+        fragment: {
+          module,
+          entryPoint: 'fs',
+          targets: [{ format: 'rgba8unorm', blend: ACCUMULATE }],
+        },
       });
       const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
       const bindGroup = device.createBindGroup({

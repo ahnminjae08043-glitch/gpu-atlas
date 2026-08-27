@@ -78,8 +78,12 @@ const CAPABILITIES = [
   'storageWritable', 'multisample4x',
 ] as const;
 
-/** Above this coefficient of variation a benchmark is treated as unreliable */
-const UNSTABLE_ABOVE = 0.25;
+/**
+ * Above this coefficient of variation a benchmark is treated as unreliable.
+ * Kept fairly tight: a 21.7% reading once slipped through on a benchmark that
+ * turned out to be measuring nothing at all.
+ */
+const UNSTABLE_ABOVE = 0.15;
 
 export function compareProfiles(profiles: AtlasProfile[]): Comparison {
   const devices: DeviceRef[] = [];
