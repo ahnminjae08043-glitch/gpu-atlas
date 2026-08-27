@@ -138,16 +138,19 @@ function render(p: AtlasProfile) {
   if (p.benchmarks) {
     const b = p.benchmarks;
     parts.push(section(
-      `Benchmarks — ${b.timestampQuery ? 'GPU timestamps' : 'wall clock'}, ${Math.round(b.totalMs)}ms total`,
+      `Benchmarks — ${b.timestampQuery ? 'GPU timestamps' : 'wall clock'}` +
+      `${b.timerResolutionNs ? `, timer resolution ${(b.timerResolutionNs / 1000).toFixed(1)}µs` : ''}` +
+      `, ${Math.round(b.totalMs)}ms total`,
       `<div class="panel">
       <table>
-        <thead><tr><th>benchmark</th><th class="num">median</th><th class="num">min</th><th class="num">throughput</th><th class="num">reps</th><th class="num">variation</th><th>clock</th></tr></thead>
+        <thead><tr><th>benchmark</th><th class="num">median</th><th class="num">min</th><th class="num">throughput</th><th class="num">reps</th><th class="num">ticks</th><th class="num">variation</th><th>clock</th></tr></thead>
         <tbody>${b.results.map((r) => `<tr>
           <td title="${esc(r.description)}">${esc(r.id)}</td>
           <td class="num">${r.failed ? '—' : `${r.medianMs.toFixed(2)}ms`}</td>
           <td class="num">${r.failed ? '—' : `${r.minMs.toFixed(2)}ms`}</td>
           <td class="num">${r.throughput != null ? `${r.throughput.toLocaleString()} ${esc(r.throughputUnit ?? '')}` : '—'}</td>
           <td class="num">${r.repetitions || '—'}</td>
+          <td class="num ${r.quantized ? 'shaky' : ''}" title="${r.quantized ? 'on the quantization floor — throughput is a lower bound' : ''}">${r.ticks != null ? r.ticks.toLocaleString() : '—'}</td>
           <td class="num ${r.variation > 0.2 ? 'shaky' : ''}">${r.failed ? '—' : `${(r.variation * 100).toFixed(0)}%`}</td>
           <td><span class="n">${r.failed ? esc(r.failed.slice(0, 40)) : (r.timing === 'timestamp-query' ? 'GPU' : 'wall')}</span></td>
         </tr>`).join('')}</tbody>

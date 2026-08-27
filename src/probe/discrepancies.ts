@@ -145,6 +145,19 @@ export function analyze(
           detail: `the benchmark did not complete: ${b.failed}`,
           severity: 'degraded',
         });
+      } else if (b.quantized) {
+        // A variation of zero here means the timer could not resolve the work,
+        // not that the device was consistent. Reporting it as stable would be
+        // the more misleading of the two options.
+        out.push({
+          kind: 'performance-cliff',
+          subject: b.id,
+          detail:
+            `the measurement spans only ${b.ticks} timer resolution units, so it` +
+            ' sits on the quantization floor. Treat this throughput as a lower' +
+            ' bound rather than a measurement',
+          severity: 'note',
+        });
       } else if (b.variation > 0.35) {
         // Unstable measurement means throttling or competing load.
         out.push({

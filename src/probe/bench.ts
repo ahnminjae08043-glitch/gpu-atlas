@@ -15,6 +15,12 @@
 //
 // So each benchmark defines only a unit of work, and the repetition count is
 // raised automatically until the measurement clears the quantization bucket.
+//
+// The bucket size is measured rather than assumed: timing a pass that does
+// almost no GPU work reports the quantization floor directly. Every result then
+// records how many resolution units it spans, which is the only way to tell a
+// genuinely stable measurement from one flattened onto that floor — both show a
+// variation of zero.
 
 import type { BenchResult, BenchmarkResults } from '../types.js';
 import { GpuTimer, median, variation } from './timer.js';
@@ -25,6 +31,10 @@ const WARMUP = 3;
 
 /** Scale repetitions until measurements exceed this, to clear quantization */
 const TARGET_MS = 10;
+/** ...and until they span at least this many timer resolution units */
+const MIN_TICKS = 100;
+/** Below this many ticks a measurement is reported as quantized */
+const QUANTIZED_BELOW_TICKS = 20;
 /** Cap on the repetition multiplier, so slow devices still finish */
 const MAX_REPS = 2048;
 
@@ -324,6 +334,97 @@ ${FULLSCREEN_VS}
   },
 ];
 
+/**
+ * Measure the GPU timer's granularity.
+ *
+ * Work shorter than one bucket reports as zero, so the approach is to grow a
+ * trivial workload until readings first become non-zero. The smallest positive
+ * reading bounds the bucket from above, and the smallest gap between distinct
+ * readings usually lands on the bucket itself — quantized values are all
+ * multiples of it. The tighter of the two is used.
+ *
+ * Returns null when the timer appears continuous (no quantization detected) or
+ * when readings could not be obtained at all.
+ */
+async function calibrateResolution(
+  device: GPUDevice,
+  timer: GpuTimer,
+): Promise<number | null> {
+  if (!timer.available) return null;
+
+  const tex = device.createTexture({
+    size: [256, 256],
+    format: 'rgba8unorm',
+    usage: GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+  const view = tex.createView();
+
+  const module = device.createShaderModule({ code: FULLSCREEN_VS + SOLID_FS });
+  let pipeline: GPURenderPipeline;
+  try {
+    pipeline = await device.createRenderPipelineAsync({
+      layout: 'auto',
+      vertex: { module, entryPoint: 'vs' },
+      fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
+    });
+  } catch {
+    dispose(tex);
+    return null;
+  }
+
+  const readings: number[] = [];
+
+  // Grow the workload until readings stop collapsing to zero.
+  let draws = 1;
+  for (let attempt = 0; attempt < 14; attempt++) {
+    let positives = 0;
+
+    for (let i = 0; i < 6; i++) {
+      const enc = device.createCommandEncoder();
+      const writes = timer.writes();
+      const pass = beginPass(enc, view, writes);
+      pass.setPipeline(pipeline);
+      for (let d = 0; d < draws; d++) pass.draw(3);
+      pass.end();
+      if (writes) timer.resolve(enc);
+      device.queue.submit([enc.finish()]);
+      await device.queue.onSubmittedWorkDone();
+
+      const ns = await timer.read();
+      if (ns === null) continue;
+      readings.push(ns);
+      if (ns > 0) positives++;
+    }
+
+    // Enough non-zero readings to work with, and a few distinct values to
+    // measure gaps between.
+    if (positives >= 4 && new Set(readings.filter((v) => v > 0)).size >= 2) break;
+    draws *= 4;
+  }
+
+  dispose(tex);
+
+  const positive = readings.filter((v) => v > 0);
+  if (positive.length === 0) return null;
+
+  const smallest = Math.min(...positive);
+
+  // Smallest gap between distinct readings. Under quantization every reading is
+  // a multiple of the bucket, so gaps are too.
+  const distinct = [...new Set(positive)].sort((a, b) => a - b);
+  let smallestGap = Infinity;
+  for (let i = 1; i < distinct.length; i++) {
+    smallestGap = Math.min(smallestGap, distinct[i] - distinct[i - 1]);
+  }
+
+  const estimate = Math.min(smallest, smallestGap);
+  if (!Number.isFinite(estimate) || estimate <= 0) return null;
+
+  // A timer resolving below a microsecond is effectively continuous here, and
+  // reporting tick counts against it would be noise.
+  return estimate < 1000 ? null : estimate;
+}
+
 export async function runBenchmarks(
   device: GPUDevice,
   samples: number,
@@ -339,9 +440,11 @@ export async function runBenchmarks(
   });
   const view = target.createView();
 
+  const resolutionNs = await calibrateResolution(device, timer);
+
   const results: BenchResult[] = [];
   for (let i = 0; i < SPECS.length; i++) {
-    results.push(await measure(device, SPECS[i], view, timer, samples));
+    results.push(await measure(device, SPECS[i], view, timer, samples, resolutionNs));
     onProgress?.((i + 1) / SPECS.length);
   }
 
@@ -351,6 +454,7 @@ export async function runBenchmarks(
   return {
     results,
     timestampQuery: timer.available,
+    timerResolutionNs: resolutionNs,
     totalMs: Math.round(performance.now() - started),
   };
 }
@@ -361,6 +465,7 @@ async function measure(
   view: GPUTextureView,
   timer: GpuTimer,
   samples: number,
+  resolutionNs: number | null,
 ): Promise<BenchResult> {
   const base: BenchResult = {
     id: spec.id,
@@ -391,14 +496,19 @@ async function measure(
     }
     await device.queue.onSubmittedWorkDone();
 
-    // Auto-scale the repetition count. Measurements have to exceed TARGET_MS or
-    // timestamp quantization flattens them.
+    // Auto-scale the repetition count. A measurement has to clear both a fixed
+    // floor and a multiple of the timer resolution, because a coarse timer can
+    // still flatten a 10ms measurement on some devices.
+    const targetMs = useGpuTime && resolutionNs
+      ? Math.max(TARGET_MS, (resolutionNs * MIN_TICKS) / 1e6)
+      : TARGET_MS;
+
     let reps = 1;
     for (let attempt = 0; attempt < 8; attempt++) {
       const { ms } = await once(device, ctx, reps, timer, useGpuTime);
-      if (ms >= TARGET_MS || reps >= MAX_REPS) break;
+      if (ms >= targetMs || reps >= MAX_REPS) break;
       // Estimate the multiplier needed, but do not jump too far at once.
-      const factor = ms > 0.001 ? Math.ceil(TARGET_MS / ms) : 8;
+      const factor = ms > 0.001 ? Math.ceil(targetMs / ms) : 8;
       reps = Math.min(MAX_REPS, reps * Math.max(2, Math.min(16, factor)));
     }
 
@@ -418,15 +528,23 @@ async function measure(
 
     const med = median(times);
     const workload = spec.unitWorkload * reps;
+    const fromGpuTimer = gpuTimed > times.length / 2;
     const result: BenchResult = {
       ...base,
       medianMs: round(med, 4),
       minMs: round(Math.min(...times), 4),
       variation: round(variation(times), 3),
-      timing: gpuTimed > times.length / 2 ? 'timestamp-query' : 'wall-clock',
+      timing: fromGpuTimer ? 'timestamp-query' : 'wall-clock',
       samples: times.length,
       repetitions: reps,
     };
+
+    // Only GPU timings are subject to timestamp quantization.
+    if (fromGpuTimer && resolutionNs) {
+      const ticks = (med * 1e6) / resolutionNs;
+      result.ticks = round(ticks, 1);
+      result.quantized = ticks < QUANTIZED_BELOW_TICKS;
+    }
 
     if (med > 0) {
       const perSecond = workload / (med / 1000);
@@ -459,8 +577,9 @@ async function once(
   const wall = performance.now() - t0;
 
   if (writes) {
-    const gpu = await timer.read();
-    if (gpu !== null) return { ms: gpu, fromGpu: true };
+    const gpuNs = await timer.read();
+    // Zero means the work fit inside one bucket — no usable duration.
+    if (gpuNs !== null && gpuNs > 0) return { ms: gpuNs / 1e6, fromGpu: true };
   }
   return { ms: wall, fromGpu: false };
 }

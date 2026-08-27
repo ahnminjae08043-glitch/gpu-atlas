@@ -15,10 +15,14 @@ export default defineConfig(({ mode }) => {
 
   return {
     root: '.',
-    // WebGPU requires a secure context, so serving over plain http to a LAN
-    // address leaves navigator.gpu undefined. Self-signed TLS makes testing on
-    // phones and other devices on the network possible.
-    plugins: [dts({ include: ['src'], rollupTypes: true }), basicSsl()],
+    // localhost is a secure context over plain http, so TLS is off by default —
+    // a self-signed certificate only adds an interstitial to click through.
+    // Set HTTPS=1 to serve over TLS when testing from another device on the LAN
+    // without going through the deployed demo.
+    plugins: [
+      dts({ include: ['src'], rollupTypes: true }),
+      ...(process.env.HTTPS ? [basicSsl()] : []),
+    ],
     build: {
       lib: {
         entry: 'src/index.ts',

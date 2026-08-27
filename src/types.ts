@@ -134,6 +134,14 @@ export interface BenchResult {
   samples: number;
   /** How many unit workloads were run per sample after auto-scaling */
   repetitions: number;
+  /**
+   * Measured duration expressed in timer resolution units. Low values mean the
+   * number is riding on the quantization floor and carries little information,
+   * which is the one case where a variation of 0 must not be read as stability.
+   */
+  ticks?: number;
+  /** The measurement sits too close to the timer resolution to be trusted */
+  quantized?: boolean;
   failed?: string;
 }
 
@@ -141,6 +149,12 @@ export interface BenchmarkResults {
   results: BenchResult[];
   /** Whether timestamp-query was usable */
   timestampQuery: boolean;
+  /**
+   * Measured granularity of the GPU timer, in nanoseconds. Browsers round
+   * timestamps into coarse buckets as a Spectre mitigation and the bucket size
+   * differs per browser and device, so it is measured rather than assumed.
+   */
+  timerResolutionNs: number | null;
   /** Wall-clock time the whole benchmark suite took */
   totalMs: number;
 }

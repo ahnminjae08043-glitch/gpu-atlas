@@ -54,7 +54,11 @@ export class GpuTimer {
     }
   }
 
-  /** Call after submitting. Returns GPU time in ms, or null if unreadable */
+  /**
+   * Call after submitting. Returns GPU time in nanoseconds, or null if
+   * unreadable. Nanoseconds are kept raw because quantization detection needs
+   * the exact integer the browser reported.
+   */
   async read(): Promise<number | null> {
     if (!this.readBuf || this.readBuf.mapState !== 'unmapped') return null;
     try {
@@ -62,8 +66,10 @@ export class GpuTimer {
       const raw = new BigInt64Array(this.readBuf.getMappedRange().slice(0));
       this.readBuf.unmap();
       const ns = Number(raw[1] - raw[0]);
-      if (!Number.isFinite(ns) || ns <= 0) return null;
-      return ns / 1e6;
+      // Zero is a meaningful reading, not a failure: it means the work finished
+      // inside a single quantization bucket. Callers decide what to do with it.
+      if (!Number.isFinite(ns) || ns < 0) return null;
+      return ns;
     } catch {
       return null;
     }
