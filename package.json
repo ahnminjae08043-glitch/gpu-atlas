@@ -13,7 +13,9 @@
       "import": "./dist/gpu-atlas.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "sideEffects": false,
   "scripts": {
     "dev": "vite",
@@ -32,6 +34,7 @@
     "rendering"
   ],
   "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@webgpu/types": "^0.1.60",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",

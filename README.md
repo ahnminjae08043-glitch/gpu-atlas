@@ -2,6 +2,10 @@
 
 **What WebGPU actually does on this device — measured, not declared.**
 
+**[Run it on your device →](https://ahnminjae08043-glitch.github.io/gpu-atlas/)**
+Takes about two seconds. Nothing is uploaded — the profile stays in your browser
+unless you save it yourself.
+
 `adapter.limits` says `maxBufferSize` is 2GB. `adapter.features` says
 `texture-compression-bc` is supported. Neither statement is a guarantee. Devices
 reject allocations they advertise, formats fail to bind in ways the feature list
