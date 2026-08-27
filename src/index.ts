@@ -8,6 +8,16 @@ export { probe } from './probe/index.js';
 export { FORMATS, findMeta } from './probe/format-table.js';
 export type { FormatMeta, FormatKind } from './probe/format-table.js';
 
+export { compareProfiles, formatComparison, describeDevice } from './compare.js';
+export type {
+  Comparison,
+  DeviceRef,
+  FeatureDiff,
+  FormatDiff,
+  LimitDiff,
+  BenchDiff,
+} from './compare.js';
+
 export { SCHEMA_VERSION } from './types.js';
 export type {
   AtlasProfile,

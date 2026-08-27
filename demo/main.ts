@@ -1,5 +1,6 @@
-import { probe } from '../src/index.js';
+import { probe, compareProfiles } from '../src/index.js';
 import type { AtlasProfile, FormatSupport } from '../src/types.js';
+import type { Comparison } from '../src/compare.js';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 
@@ -11,8 +12,15 @@ const progress = $<HTMLDivElement>('#progress');
 const bar = $<HTMLElement>('#progress .bar > i');
 const stage = $<HTMLDivElement>('#progress .stage');
 const out = $<HTMLDivElement>('#out');
+const filesInput = $<HTMLInputElement>('#files');
+const pasteArea = $<HTMLTextAreaElement>('#paste');
+const compareBtn = $<HTMLButtonElement>('#compare');
+const clearBtn = $<HTMLButtonElement>('#clear-loaded');
+const loadedInfo = $<HTMLDivElement>('#loaded');
 
 let current: AtlasProfile | null = null;
+/** Profiles loaded from other devices, keyed by fingerprint to avoid duplicates */
+const loaded = new Map<string, AtlasProfile>();
 
 runBtn.onclick = () => run(true);
 quickBtn.onclick = () => run(false);
@@ -56,6 +64,199 @@ async function run(benchmark: boolean) {
     runBtn.disabled = quickBtn.disabled = false;
     progress.classList.remove('on');
   }
+}
+
+filesInput.onchange = async () => {
+  const files = [...(filesInput.files ?? [])];
+  let added = 0;
+  const errors: string[] = [];
+  for (const f of files) {
+    try {
+      added += ingest(JSON.parse(await f.text()));
+    } catch (e) {
+      errors.push(`${f.name}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  filesInput.value = '';
+  reportLoaded(added, errors);
+};
+
+clearBtn.onclick = () => {
+  loaded.clear();
+  pasteArea.value = '';
+  reportLoaded(0, []);
+};
+
+compareBtn.onclick = () => {
+  const errors: string[] = [];
+  const text = pasteArea.value.trim();
+  if (text) {
+    try {
+      // Accept a bare object, an array, or several objects pasted back to back.
+      for (const obj of parseLoose(text)) ingest(obj);
+      pasteArea.value = '';
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  const profiles = [...(current ? [current] : []), ...loaded.values()];
+  if (profiles.length < 2) {
+    reportLoaded(0, [
+      ...errors,
+      'need at least two profiles - run the probe on this device and load at least one more',
+    ]);
+    return;
+  }
+
+  reportLoaded(0, errors);
+  renderComparison(compareProfiles(profiles));
+};
+
+/** Accept a profile-shaped object, returning how many were taken */
+function ingest(obj: unknown): number {
+  const list = Array.isArray(obj) ? obj : [obj];
+  let n = 0;
+  for (const item of list) {
+    const p = item as AtlasProfile;
+    if (!p || typeof p !== 'object' || typeof p.fingerprint !== 'string' || !p.schema) {
+      throw new Error('not a gpu-atlas profile');
+    }
+    loaded.set(p.fingerprint, p);
+    n++;
+  }
+  return n;
+}
+
+/** Parse one JSON value, an array, or several concatenated objects */
+function parseLoose(text: string): unknown[] {
+  try {
+    const v = JSON.parse(text);
+    return Array.isArray(v) ? v : [v];
+  } catch {
+    // Fall through to scanning for consecutive top-level objects.
+  }
+
+  const out: unknown[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === '{') { if (depth === 0) start = i; depth++; }
+    else if (c === '}') {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        out.push(JSON.parse(text.slice(start, i + 1)));
+        start = -1;
+      }
+    }
+  }
+
+  if (out.length === 0) throw new Error('could not parse any JSON object');
+  return out;
+}
+
+function reportLoaded(added: number, errors: string[]) {
+  const names = [...loaded.values()]
+    .map((p) => `${p.fingerprint.slice(0, 8)} ${describeLoaded(p)}`);
+  const parts: string[] = [];
+  parts.push(names.length ? `Loaded: ${names.join(' · ')}` : 'No external profiles loaded.');
+  if (added) parts.push(`(+${added})`);
+  for (const e of errors) parts.push(`<span class="x">${esc(e)}</span>`);
+  loadedInfo.innerHTML = parts.join(' ');
+}
+
+function describeLoaded(p: AtlasProfile): string {
+  const gpu = [p.adapter?.vendor, p.adapter?.architecture].filter(Boolean).join(' ');
+  return esc(`${gpu || 'unknown'} / ${p.environment.browser}`);
+}
+
+function renderComparison(c: Comparison) {
+  const short = (fp: string) => fp.slice(0, 8);
+  const head = c.devices.map((d) =>
+    `<th class="num" title="${esc(d.label)}">${short(d.fingerprint)}</th>`).join('');
+  const marks = (fps: string[]) => c.devices.map((d) =>
+    `<td class="num">${fps.includes(d.fingerprint)
+      ? '<span class="y">O</span>' : '<span class="x">·</span>'}</td>`).join('');
+
+  const parts: string[] = [];
+
+  parts.push(section('Compared devices', `<div class="panel"><dl class="kv">
+    ${c.devices.map((d) => kv(short(d.fingerprint),
+      `${esc(d.label)}${d.mobile ? ' <span class="n">(mobile)</span>' : ''}`)).join('')}
+  </dl>${c.excluded.length ? `<p class="hint x">${c.excluded.map((e) =>
+    esc(`profile #${e.index}: ${e.reason}`)).join('<br>')}</p>` : ''}</div>`));
+
+  if (c.benchmarks.length) {
+    parts.push(section('Performance spread', `<div class="panel">
+      <table>
+        <thead><tr><th>benchmark</th><th>unit</th>${head}<th class="num">gap</th></tr></thead>
+        <tbody>${c.benchmarks.map((b) => `<tr>
+          <td title="${esc(b.description)}">${esc(b.id)}</td>
+          <td><span class="n">${esc(b.unit)}</span></td>
+          ${c.devices.map((d) => {
+            const v = b.values[d.fingerprint];
+            const flag = b.unreliable.includes(d.fingerprint)
+              ? '<span class="flag" title="quantized or unstable measurement">*</span>' : '';
+            return `<td class="num">${v != null ? v.toLocaleString() : '—'}${flag}</td>`;
+          }).join('')}
+          <td class="num gap">${b.ratio ? `${b.ratio.toFixed(1)}x` : '—'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      ${c.benchmarks.some((b) => b.unreliable.length)
+        ? '<p class="hint">* measurement sat on the quantization floor or was unstable, so a gap involving it is not reliable</p>'
+        : ''}
+    </div>`));
+  }
+
+  parts.push(section(`Features — ${c.sharedFeatures.length} shared, ${c.features.length} uneven`,
+    c.features.length === 0
+      ? '<div class="panel empty">Every compared device declares the same features.</div>'
+      : `<div class="panel"><table>
+          <thead><tr><th>feature</th>${head}</tr></thead>
+          <tbody>${c.features.map((f) => `<tr>
+            <td>${esc(f.feature)}</td>${marks(f.supportedBy)}
+          </tr>`).join('')}</tbody>
+        </table></div>`));
+
+  parts.push(section(`Format capabilities that differ — ${c.formats.length}`,
+    c.formats.length === 0
+      ? '<div class="panel empty">Every format behaves identically across these devices.</div>'
+      : `<div class="panel"><table>
+          <thead><tr><th>format</th><th>capability</th>${head}</tr></thead>
+          <tbody>${c.formats.map((f) => `<tr>
+            <td>${esc(f.format)}</td>
+            <td><span class="n">${esc(f.capability)}</span></td>${marks(f.supportedBy)}
+          </tr>`).join('')}</tbody>
+        </table></div>`));
+
+  parts.push(section(`Limits that differ — ${c.limits.length}`,
+    c.limits.length === 0
+      ? '<div class="panel empty">Every measured limit matches across these devices.</div>'
+      : `<div class="panel"><table>
+          <thead><tr><th>limit</th>${head}<th class="num">gap</th></tr></thead>
+          <tbody>${c.limits.map((l) => `<tr>
+            <td>${esc(l.limit)}</td>
+            ${c.devices.map((d) => {
+              const v = l.values[d.fingerprint];
+              return `<td class="num">${v != null ? bytes(l.limit, v) : '—'}</td>`;
+            }).join('')}
+            <td class="num gap">${Number.isFinite(l.ratio) ? `${l.ratio.toFixed(1)}x` : '—'}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>`));
+
+  out.innerHTML = parts.join('');
+  out.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function render(p: AtlasProfile) {
