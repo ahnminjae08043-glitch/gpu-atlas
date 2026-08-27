@@ -1,0 +1,40 @@
+{
+  "name": "gpu-atlas",
+  "version": "0.0.1",
+  "description": "WebGPU가 실제로 무엇을 할 수 있는지 기기에서 직접 측정한다 — 선언된 limits가 아니라 실측 기준으로.",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/gpu-atlas.js",
+  "module": "./dist/gpu-atlas.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/gpu-atlas.js"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:demo": "vite build --mode demo",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "webgpu",
+    "gpu",
+    "capabilities",
+    "benchmark",
+    "compatibility",
+    "graphics",
+    "rendering"
+  ],
+  "devDependencies": {
+    "@webgpu/types": "^0.1.60",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "vite-plugin-dts": "^4.4.0"
+  }
+}
