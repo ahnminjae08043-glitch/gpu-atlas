@@ -2,8 +2,26 @@
   "name": "gpu-atlas",
   "version": "0.1.0",
   "description": "What WebGPU actually does on this device — verified by creating the resources and running the passes, not by reading declared limits.",
-  "type": "module",
+  "keywords": [
+    "webgpu",
+    "gpu",
+    "capabilities",
+    "benchmark",
+    "compatibility",
+    "graphics",
+    "rendering"
+  ],
   "license": "MIT",
+  "author": "ahnminjae08043-glitch (https://github.com/ahnminjae08043-glitch)",
+  "homepage": "https://ahnminjae08043-glitch.github.io/gpu-atlas/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ahnminjae08043-glitch/gpu-atlas.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ahnminjae08043-glitch/gpu-atlas/issues"
+  },
+  "type": "module",
   "main": "./dist/gpu-atlas.js",
   "module": "./dist/gpu-atlas.js",
   "types": "./dist/index.d.ts",
@@ -18,6 +36,9 @@
     "dist"
   ],
   "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "npm run typecheck && npm test && vite build",
@@ -27,15 +48,6 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "keywords": [
-    "webgpu",
-    "gpu",
-    "capabilities",
-    "benchmark",
-    "compatibility",
-    "graphics",
-    "rendering"
-  ],
   "devDependencies": {
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@webgpu/types": "^0.1.60",
