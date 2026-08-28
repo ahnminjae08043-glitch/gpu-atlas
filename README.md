@@ -8,52 +8,87 @@ unless you save it yourself.
 
 ---
 
-## What measuring turned up
+## What measuring three devices turned up
 
-Two devices, profiled the same way. Desktop is an NVIDIA Lovelace GPU on Chrome
-151; mobile is a Qualcomm Adreno 7xx on Samsung Internet 30.
+| | desktop | laptop | phone |
+|---|---|---|---|
+| GPU | NVIDIA Lovelace | Apple silicon | Adreno 7xx |
+| browser | Chrome 151 | Safari 26 | Samsung Internet 30 |
 
 ### Performance does not scale by a single factor
 
-| benchmark | desktop | mobile | gap |
-|---|---:|---:|---:|
-| triangle throughput | 3,795 MTri/s | 65 MTri/s | **58x** |
-| texture sampling | 241 GSample/s | 11 GSample/s | 22x |
-| fill rate | 130,977 MPixel/s | 6,982 MPixel/s | 19x |
-| bind group switching | 3,884,892 /s | 217,391 /s | 18x |
-| fragment ALU | 2,994 MPixel/s | 180 MPixel/s | 17x |
-| draw call overhead | 9,105,691 /s | 736,196 /s | 12x |
-| pipeline switching | 1,621,622 /s | 162,602 /s | 10x |
+| benchmark | desktop | Apple | Adreno | spread |
+|---|---:|---:|---:|---:|
+| triangle throughput | 3,906 MTri/s | 354 | 65 | **60x** |
+| texture sampling | 238 GSample/s | 18.4 | 11.0 | 22x |
+| fill rate | 124,464 MPixel/s | 35,079 | 6,522 | 19x |
+| bind group switching | 3,913,043 /s | 909,091 | 217,391 | 18x |
+| fragment ALU | 2,994 MPixel/s | 267 | 179 | 17x |
+| draw call overhead | 9,896,907 /s | 1,818,182 | 952,381 | 10x |
+| pipeline switching | 1,698,113 /s | 1,363,636 | 203,046 | 8x |
 
-Geometry is roughly five times worse off than everything else. On a tile-based
-mobile GPU the binning cost lands on vertices, so the practical conclusion is
-that **cutting triangles buys far more than cutting pixels** — the opposite of
-the usual desktop instinct. A single composite score would have averaged this
-into "mobile is ~20x slower" and thrown away the one number worth acting on.
+Geometry spreads three times wider than anything else, and the ordering is not
+uniform either. Against Apple silicon the desktop's geometry lead (11x) is
+ordinary and its texture sampling lead (13x) is the largest; against Adreno,
+geometry is the worst axis by a distance. Tile-based mobile GPUs pay binning
+cost on vertices, so **on phones, cutting triangles buys far more than cutting
+pixels** — the reverse of the desktop instinct.
+
+Pipeline switching is the flattest axis of all: Apple silicon is within 1.2x of
+a desktop discrete GPU there while being 11x behind on geometry. Any single
+"this device is N times slower" number would be wrong in both directions at
+once.
 
 ### Capability differences that break code
 
-- `bgra8unorm` is storage-writable on desktop and not on mobile. Since
-  `bgra8unorm` is also desktop's `preferredCanvasFormat` (mobile reports
-  `rgba8unorm`), this is an easy way to ship something that works locally and
-  fails on phones.
-- `maxStorageBufferBindingSize` is **16x** apart: 2GB vs 128MB.
-- Compression support is disjoint. Desktop has BC only; mobile has BC **and**
-  ETC2 **and** ASTC. Shipping one compressed format for everyone does not work.
-- `float32-filterable` is desktop-only here.
+**`maxUniformBufferBindingSize` differs by 10,922x.** Safari allows 683MB;
+Chrome and Samsung Internet cap at 64KB. Code developed on a Mac against large
+uniform buffers does not merely run slower elsewhere — it fails outright.
 
-### Browsers quantize GPU timestamps to exactly 2^16 ns
+**No compressed texture format works everywhere.** Desktop Chrome has BC only.
+Safari has ETC2 and ASTC but no BC. Adreno has all three. Desktop Chrome and
+Safari — both desktops — share *zero* compressed formats.
+
+**`bgra8unorm` is storage-writable on desktop and on Apple, but not on Adreno.**
+It is also the preferred canvas format on two of the three (the phone reports
+`rgba8unorm`), which makes it an easy thing to build on and have fail on phones.
+
+`maxStorageBufferBindingSize` spans 16x (2GB / 683MB / 128MB).
+
+### Browsers quantize GPU timestamps, and by different amounts
 
 `timestamp-query` results are rounded into buckets as a Spectre mitigation.
-Measured directly, the bucket is **65,536 ns** — and it came back identical on
-both machines despite different GPU vendors, operating systems, and browsers.
-That points at a Chromium policy rather than anything about the hardware.
+Measured rather than assumed:
 
-The practical consequence for anyone writing WebGPU benchmarks: **work shorter
-than ~65 microseconds cannot be measured at all.** It reports as zero, or as a
-number indistinguishable from unrelated work. Before this was accounted for,
-two unrelated benchmarks here reported byte-identical timings, and geometry
-throughput was being understated by 13%.
+| | GPU timer | `performance.now()` |
+|---|---|---|
+| Chrome 151 | 65,536 ns (2^16) | 0.1 ms |
+| Samsung Internet 30 | 65,536 ns (2^16) | 0.1 ms |
+| Safari 26 | no quantization detected | 1 ms |
+
+Both Chromium browsers return exactly 2^16 despite different GPU vendors and
+operating systems, while WebKit does not quantize the GPU timer at all — this is
+browser policy, not hardware.
+
+The practical consequence: **on Chromium, GPU work shorter than ~65 microseconds
+cannot be measured.** It reports as zero or as a value indistinguishable from
+unrelated work. Before accounting for this, two unrelated benchmarks here
+reported byte-identical timings.
+
+### A benchmark that measured nothing
+
+Fragment work was originally created by stacking identical opaque fullscreen
+draws. On Apple silicon that reported 112,524 MPixel/s — a 37x *advantage* over
+an RTX 4060, which is not plausible. A tile-based deferred renderer discards
+occluded opaque fragments before shading them, so every draw but the last was
+being thrown away. Adreno, tile-based but not deferred to the same degree, did
+not do this, so the same benchmark id was measuring different work per
+architecture.
+
+Additive blending fixes it, since each draw must contribute to the accumulated
+result. The corrected figure is 267 MPixel/s — **530x lower**, and consistent
+with a laptop GPU. Geometry throughput was unaffected, as its triangles occupy
+distinct screen positions and never occluded one another.
 
 ---
 
@@ -77,34 +112,34 @@ for (const issue of breakingIssues(profile)) {
 const hdr = pickFormat(profile, ['rgba16float', 'rgb10a2unorm', 'rgba8unorm'], 'render');
 ```
 
-Comparing devices:
+Comparing devices — this needs no GPU, so it also works in Node:
 
 ```js
 import { compareProfiles, formatComparison } from 'gpu-atlas';
 
-const comparison = compareProfiles([desktopProfile, mobileProfile]);
+const comparison = compareProfiles([desktop, laptop, phone]);
 console.log(formatComparison(comparison));
 
-// Benchmarks are sorted by gap, so the worst portability risk comes first
+// Sorted by spread, so the worst portability risk is first
 const worst = comparison.benchmarks[0];
-console.log(worst.id, worst.ratio);   // "triangle-throughput", 58.3
+console.log(worst.id, worst.ratio);   // "triangle-throughput", 60.0
 ```
 
 Measurements flagged `unreliable` — quantized or unstable — are marked rather
-than silently folded into the comparison.
+than folded silently into a ratio.
 
 ## What it measures
 
 **Texture formats.** 53 formats, each checked for six separate capabilities:
 creation, shader sampling, render target, blending, storage binding, and 4x
-MSAA. A format that creates fine but fails to bind is a real failure mode and it
-is invisible in the feature list.
+MSAA. A format that creates fine but fails to bind is a real failure mode, and
+it is invisible in the feature list.
 
-**WGSL compilation.** Cases chosen where implementations diverge: function
-pointers, dynamic uniform indexing, struct alignment, override constants,
-workgroup atomics, uniformity analysis. Chrome uses Dawn/Tint, Firefox uses
-wgpu/naga, Safari has its own compiler, and each targets a different backend
-language. Compile time is recorded too, since it drives first-frame stalls.
+**WGSL compilation.** Cases where implementations diverge: function pointers,
+dynamic uniform indexing, struct alignment, override constants, workgroup
+atomics, uniformity analysis. Chrome uses Dawn/Tint, Firefox uses wgpu/naga,
+Safari has its own compiler, and each targets a different backend language.
+Compile time is recorded too, since it drives first-frame stalls.
 
 **Limits.** Declared values are requested for real, then bisected to find the
 actual ceiling when a device refuses.
@@ -116,22 +151,26 @@ reason the table above demonstrates.
 
 Getting numbers is easy; getting numbers that mean anything was most of the work.
 
-**Quantization is measured, not assumed.** Work below one bucket reports as
-zero, so a trivial workload is grown until readings become non-zero. The
-smallest positive reading bounds the bucket, and the smallest gap between
-distinct readings lands on it. Each benchmark then scales its repetitions until
-it spans at least 100 buckets, and every result carries its `ticks` count.
+**Quantization is measured, not assumed** — and validated before it is believed.
+Work below one bucket reports as zero, so a trivial workload is grown until
+readings become non-zero. The smallest positive reading bounds the bucket, and
+the smallest gap between distinct readings lands on it. That candidate then has
+to *behave* like a bucket: under real quantization every reading is a multiple
+of it. Without that check, a fine-grained timer looks identical to a quantized
+one, and the same Safari machine reported a different timer on consecutive runs.
+
+**Both clocks are measured.** `performance.now()` is quantized too, to a full
+millisecond in Safari, and the draw-call benchmarks are wall-clock by necessity
+— their cost lives in browser validation and driver calls, which barely register
+on GPU timestamps. Each benchmark scales its repetitions until it spans enough
+ticks of whichever clock timed it, and every result carries that tick count.
 
 **This is the only way to read a variation of zero correctly.** Perfect
 consistency and a timer that cannot resolve the work look identical otherwise.
-Mobile turned out to be genuinely more reproducible than desktop here — three
-benchmarks repeated to the decimal place across independent runs, while desktop
-drifted several percent — but that only became a claim worth making once ticks
-confirmed the measurements were not sitting on the floor.
-
-**Draw call cost is not GPU time.** It lives in browser validation and driver
-calls, which barely register on GPU timestamps. Those benchmarks are wall-clock
-by design, and each result records which clock produced it.
+Mobile turned out to be genuinely more reproducible than desktop — geometry
+throughput repeated at exactly 65.1 MTri/s across runs weeks apart — but that
+only became a claim worth making once ticks confirmed the measurement was not
+sitting on the floor.
 
 ## Feature-aware baselines
 
@@ -152,17 +191,17 @@ device declares before comparing. What survives is genuine divergence.
 
 ## Status
 
-Early, and honest about it. **Two devices is not a dataset.** The capability
-differences above are facts about these two machines; whether they generalize
-needs many more profiles.
+Early, and honest about it. **Three devices is not a dataset.** The differences
+above are facts about these three machines; whether they generalize needs many
+more profiles. Firefox and iOS are entirely unmeasured.
 
-Worth noting that the original premise — that browsers misreport their own
-capabilities — has not held up. Both devices did exactly what they declared,
-zero discrepancies each. The value turned out to be in the gaps *between*
-devices instead, which is why comparison exists at all.
+Worth stating plainly: the original premise — that browsers misreport their own
+capabilities — has not held up. All three devices did exactly what they
+declared, zero discrepancies each. The value turned out to be in the gaps
+*between* devices, which is why comparison exists at all.
 
 If you run the probe, saving the JSON and opening an issue with it genuinely
-helps. Mobile GPUs, Firefox, and Safari are the biggest blind spots.
+helps.
 
 ## License
 
