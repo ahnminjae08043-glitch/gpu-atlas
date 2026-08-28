@@ -586,9 +586,14 @@ async function measure(
     // Auto-scale the repetition count. A measurement has to clear both a fixed
     // floor and a multiple of the timer resolution, because a coarse timer can
     // still flatten a 10ms measurement on some devices.
-    const targetMs = useGpuTime && resolutionNs
-      ? Math.max(TARGET_MS, (resolutionNs * MIN_TICKS) / 1e6)
-      // Wall-clock benchmarks are bounded by performance.now()'s granularity.
+    // Each clock has its own floor. A GPU-timed benchmark is not bounded by
+    // performance.now()'s granularity, and treating it as if it were just makes
+    // the run longer for nothing.
+    const targetMs = useGpuTime
+      ? (resolutionNs
+        ? Math.max(TARGET_MS, (resolutionNs * MIN_TICKS) / 1e6)
+        // A continuous GPU timer imposes no floor of its own.
+        : TARGET_MS)
       : Math.max(TARGET_MS, wallResolutionMs * MIN_WALL_TICKS);
 
     let reps = 1;
