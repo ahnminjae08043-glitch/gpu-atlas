@@ -40,6 +40,12 @@ const WARMUP = 3;
 const TARGET_MS = 10;
 /** ...and until they span at least this many timer resolution units */
 const MIN_TICKS = 100;
+/**
+ * Wall-clock ticks required. Lower than MIN_TICKS because performance.now() is
+ * coarse enough on some browsers (1ms in Safari) that demanding 100 would make
+ * every draw-call benchmark take several seconds.
+ */
+const MIN_WALL_TICKS = 30;
 /** Below this many ticks a measurement is reported as quantized */
 const QUANTIZED_BELOW_TICKS = 20;
 /** Cap on the repetition multiplier, so slow devices still finish */
@@ -366,6 +372,26 @@ ${FULLSCREEN_VS}
 ];
 
 /**
+ * Measure performance.now()'s granularity by spinning until it changes.
+ *
+ * Browsers round this too — Safari to a full millisecond — which matters
+ * because the draw-call benchmarks are wall-clock by design. A 10ms reading
+ * against a 1ms clock carries barely more than one significant digit, and it
+ * showed up as those benchmarks swinging ~70% between runs.
+ */
+function wallClockResolutionMs(): number {
+  let smallest = Infinity;
+  for (let i = 0; i < 24; i++) {
+    const start = performance.now();
+    let next = start;
+    // Spin until the clock advances; the jump is one tick.
+    while (next === start) next = performance.now();
+    smallest = Math.min(smallest, next - start);
+  }
+  return Number.isFinite(smallest) && smallest > 0 ? smallest : 0;
+}
+
+/**
  * Measure the GPU timer's granularity.
  *
  * Work shorter than one bucket reports as zero, so the approach is to grow a
@@ -436,7 +462,7 @@ async function calibrateResolution(
   dispose(tex);
 
   const positive = readings.filter((v) => v > 0);
-  if (positive.length === 0) return null;
+  if (positive.length < 4) return null;
 
   const smallest = Math.min(...positive);
 
@@ -451,9 +477,34 @@ async function calibrateResolution(
   const estimate = Math.min(smallest, smallestGap);
   if (!Number.isFinite(estimate) || estimate <= 0) return null;
 
-  // A timer resolving below a microsecond is effectively continuous here, and
-  // reporting tick counts against it would be noise.
-  return estimate < 1000 ? null : estimate;
+  // The candidate has to actually behave like a bucket before it is reported as
+  // one. Under quantization every reading is a multiple of it; on a timer that
+  // is simply fine-grained, the smallest reading is just how long the smallest
+  // workload took and later readings fall wherever they like.
+  //
+  // This matters because the two look identical from a single number. Chromium
+  // returns 65536 here and every reading divides by it exactly. WebKit returns
+  // whatever the shortest pass happened to cost, varying run to run, and
+  // treating that as a resolution made the same machine report a different
+  // timer on consecutive runs.
+  if (!behavesLikeBucket(positive, estimate)) return null;
+
+  return estimate;
+}
+
+/** Whether readings are consistently multiples of the candidate bucket */
+function behavesLikeBucket(readings: number[], bucket: number): boolean {
+  if (bucket <= 0) return false;
+
+  const tolerance = bucket * 0.02;
+  let multiples = 0;
+  for (const v of readings) {
+    const remainder = v % bucket;
+    if (remainder <= tolerance || remainder >= bucket - tolerance) multiples++;
+  }
+
+  // Allow one stray reading; demand the rest line up.
+  return multiples / readings.length >= 0.9;
 }
 
 export async function runBenchmarks(
@@ -472,10 +523,13 @@ export async function runBenchmarks(
   const view = target.createView();
 
   const resolutionNs = await calibrateResolution(device, timer);
+  const wallResolutionMs = wallClockResolutionMs();
 
   const results: BenchResult[] = [];
   for (let i = 0; i < SPECS.length; i++) {
-    results.push(await measure(device, SPECS[i], view, timer, samples, resolutionNs));
+    results.push(await measure(
+      device, SPECS[i], view, timer, samples, resolutionNs, wallResolutionMs,
+    ));
     onProgress?.((i + 1) / SPECS.length);
   }
 
@@ -486,6 +540,7 @@ export async function runBenchmarks(
     results,
     timestampQuery: timer.available,
     timerResolutionNs: resolutionNs,
+    wallClockResolutionMs: wallResolutionMs > 0 ? wallResolutionMs : null,
     totalMs: Math.round(performance.now() - started),
   };
 }
@@ -497,6 +552,7 @@ async function measure(
   timer: GpuTimer,
   samples: number,
   resolutionNs: number | null,
+  wallResolutionMs: number,
 ): Promise<BenchResult> {
   const base: BenchResult = {
     id: spec.id,
@@ -532,7 +588,8 @@ async function measure(
     // still flatten a 10ms measurement on some devices.
     const targetMs = useGpuTime && resolutionNs
       ? Math.max(TARGET_MS, (resolutionNs * MIN_TICKS) / 1e6)
-      : TARGET_MS;
+      // Wall-clock benchmarks are bounded by performance.now()'s granularity.
+      : Math.max(TARGET_MS, wallResolutionMs * MIN_WALL_TICKS);
 
     let reps = 1;
     for (let attempt = 0; attempt < 8; attempt++) {
@@ -570,9 +627,13 @@ async function measure(
       repetitions: reps,
     };
 
-    // Only GPU timings are subject to timestamp quantization.
-    if (fromGpuTimer && resolutionNs) {
-      const ticks = (med * 1e6) / resolutionNs;
+    // Both clocks quantize; which one applies depends on how this was timed.
+    const tickSizeMs = fromGpuTimer
+      ? (resolutionNs != null ? resolutionNs / 1e6 : null)
+      : (wallResolutionMs > 0 ? wallResolutionMs : null);
+
+    if (tickSizeMs) {
+      const ticks = med / tickSizeMs;
       result.ticks = round(ticks, 1);
       result.quantized = ticks < QUANTIZED_BELOW_TICKS;
     }

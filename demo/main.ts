@@ -340,7 +340,8 @@ function render(p: AtlasProfile) {
     const b = p.benchmarks;
     parts.push(section(
       `Benchmarks — ${b.timestampQuery ? 'GPU timestamps' : 'wall clock'}` +
-      `${b.timerResolutionNs ? `, timer resolution ${(b.timerResolutionNs / 1000).toFixed(1)}µs` : ''}` +
+      `${b.timerResolutionNs ? `, GPU timer ${(b.timerResolutionNs / 1000).toFixed(1)}µs` : ', GPU timer continuous'}` +
+      `${b.wallClockResolutionMs ? `, wall clock ${b.wallClockResolutionMs.toFixed(3)}ms` : ''}` +
       `, ${Math.round(b.totalMs)}ms total`,
       `<div class="panel">
       <table>

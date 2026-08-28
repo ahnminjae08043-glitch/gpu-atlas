@@ -155,6 +155,11 @@ export interface BenchmarkResults {
    * differs per browser and device, so it is measured rather than assumed.
    */
   timerResolutionNs: number | null;
+  /**
+   * Measured granularity of performance.now(), in milliseconds. Safari rounds
+   * to 1ms, which bounds how precisely the wall-clock benchmarks can be read.
+   */
+  wallClockResolutionMs: number | null;
   /** Wall-clock time the whole benchmark suite took */
   totalMs: number;
 }
