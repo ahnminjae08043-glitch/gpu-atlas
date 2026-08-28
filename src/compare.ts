@@ -6,7 +6,9 @@
 // side. Two devices already surface a 65x gap on one axis and 12x on another,
 // which no single profile could have revealed.
 
-import type { AtlasProfile, BenchResult } from './types.js';
+import type {
+  AtlasProfile, BenchResult, FormatSupport, LimitProbe,
+} from './types.js';
 import { MIN_COMPARABLE_BENCHMARK_SCHEMA } from './types.js';
 
 export interface DeviceRef {
@@ -82,6 +84,31 @@ export interface Comparison {
   excluded: Array<{ index: number; reason: string }>;
 }
 
+/**
+ * Lookup tables built once per profile.
+ *
+ * The naive version scanned the arrays inside the comparison loops, which is
+ * fine for three profiles and quadratic for the collection this is meant to
+ * grow into.
+ */
+interface Indexed {
+  profile: AtlasProfile;
+  features: Set<string>;
+  formats: Map<string, FormatSupport>;
+  limits: Map<string, LimitProbe>;
+  benchmarks: Map<string, BenchResult>;
+}
+
+function index(p: AtlasProfile): Indexed {
+  return {
+    profile: p,
+    features: new Set(p.declared!.features),
+    formats: new Map(p.verified!.formats.map((f) => [f.format, f])),
+    limits: new Map(p.verified!.limits.map((l) => [l.limit, l])),
+    benchmarks: new Map((p.benchmarks?.results ?? []).map((r) => [r.id, r])),
+  };
+}
+
 const CAPABILITIES = [
   'creatable', 'sampleable', 'renderable', 'blendable',
   'storageWritable', 'multisample4x',
@@ -120,12 +147,14 @@ export function compareProfiles(profiles: AtlasProfile[]): Comparison {
     usable.push(p);
   });
 
+  const indexed = usable.map(index);
+
   return {
     devices,
-    ...diffFeatures(usable),
-    formats: diffFormats(usable),
-    limits: diffLimits(usable),
-    benchmarks: diffBenchmarks(usable),
+    ...diffFeatures(indexed),
+    formats: diffFormats(indexed),
+    limits: diffLimits(indexed),
+    benchmarks: diffBenchmarks(indexed),
     excluded,
   };
 }
@@ -140,12 +169,12 @@ export function describeDevice(p: AtlasProfile): string {
 
 // ── Features ────────────────────────────────────────────
 
-function diffFeatures(profiles: AtlasProfile[]): {
+function diffFeatures(profiles: Indexed[]): {
   features: FeatureDiff[];
   sharedFeatures: string[];
 } {
   const all = new Set<string>();
-  for (const p of profiles) for (const f of p.declared!.features) all.add(f);
+  for (const p of profiles) for (const f of p.features) all.add(f);
 
   const features: FeatureDiff[] = [];
   const shared: string[] = [];
@@ -154,8 +183,7 @@ function diffFeatures(profiles: AtlasProfile[]): {
     const supportedBy: string[] = [];
     const missingFrom: string[] = [];
     for (const p of profiles) {
-      (p.declared!.features.includes(feature) ? supportedBy : missingFrom)
-        .push(p.fingerprint);
+      (p.features.has(feature) ? supportedBy : missingFrom).push(p.profile.fingerprint);
     }
     if (missingFrom.length === 0) shared.push(feature);
     else features.push({ feature, supportedBy, missingFrom });
@@ -166,10 +194,10 @@ function diffFeatures(profiles: AtlasProfile[]): {
 
 // ── Formats ─────────────────────────────────────────────
 
-function diffFormats(profiles: AtlasProfile[]): FormatDiff[] {
+function diffFormats(profiles: Indexed[]): FormatDiff[] {
   const all = new Set<string>();
   for (const p of profiles) {
-    for (const f of p.verified!.formats) all.add(f.format);
+    for (const format of p.formats.keys()) all.add(format);
   }
 
   const out: FormatDiff[] = [];
@@ -180,10 +208,10 @@ function diffFormats(profiles: AtlasProfile[]): FormatDiff[] {
       const missingFrom: string[] = [];
 
       for (const p of profiles) {
-        const entry = p.verified!.formats.find((f) => f.format === format);
+        const entry = p.formats.get(format);
         // A format the probe never checked is not evidence of anything.
         if (!entry) continue;
-        (entry[capability] ? supportedBy : missingFrom).push(p.fingerprint);
+        (entry[capability] ? supportedBy : missingFrom).push(p.profile.fingerprint);
       }
 
       // Only differences are interesting; uniform support is the common case.
@@ -198,17 +226,17 @@ function diffFormats(profiles: AtlasProfile[]): FormatDiff[] {
 
 // ── Limits ──────────────────────────────────────────────
 
-function diffLimits(profiles: AtlasProfile[]): LimitDiff[] {
+function diffLimits(profiles: Indexed[]): LimitDiff[] {
   const all = new Set<string>();
-  for (const p of profiles) for (const l of p.verified!.limits) all.add(l.limit);
+  for (const p of profiles) for (const limit of p.limits.keys()) all.add(limit);
 
   const out: LimitDiff[] = [];
 
   for (const limit of [...all].sort()) {
     const values: Record<string, number> = {};
     for (const p of profiles) {
-      const entry = p.verified!.limits.find((l) => l.limit === limit);
-      if (entry) values[p.fingerprint] = entry.achieved;
+      const entry = p.limits.get(limit);
+      if (entry) values[p.profile.fingerprint] = entry.achieved;
     }
 
     const nums = Object.values(values);
@@ -227,11 +255,11 @@ function diffLimits(profiles: AtlasProfile[]): LimitDiff[] {
 
 // ── Benchmarks ──────────────────────────────────────────
 
-function diffBenchmarks(profiles: AtlasProfile[]): BenchDiff[] {
+function diffBenchmarks(profiles: Indexed[]): BenchDiff[] {
   const all = new Map<string, BenchResult>();
   for (const p of profiles) {
-    for (const r of p.benchmarks?.results ?? []) {
-      if (!all.has(r.id)) all.set(r.id, r);
+    for (const [id, r] of p.benchmarks) {
+      if (!all.has(id)) all.set(id, r);
     }
   }
 
@@ -242,19 +270,18 @@ function diffBenchmarks(profiles: AtlasProfile[]): BenchDiff[] {
     const unreliable: string[] = [];
 
     for (const p of profiles) {
-      const r = p.benchmarks?.results.find((x) => x.id === id);
+      const fp = p.profile.fingerprint;
+      const r = p.benchmarks.get(id);
       if (!r || r.failed || r.throughput == null) {
-        values[p.fingerprint] = null;
+        values[fp] = null;
         continue;
       }
-      values[p.fingerprint] = r.throughput;
+      values[fp] = r.throughput;
 
       // An older profile has no quantization data at all, so its numbers cannot
       // be vouched for — silence there means "not recorded", not "fine".
-      const stale = (p.schema ?? 0) < MIN_COMPARABLE_BENCHMARK_SCHEMA;
-      if (stale || r.quantized || r.variation > UNSTABLE_ABOVE) {
-        unreliable.push(p.fingerprint);
-      }
+      const stale = (p.profile.schema ?? 0) < MIN_COMPARABLE_BENCHMARK_SCHEMA;
+      if (stale || r.quantized || r.variation > UNSTABLE_ABOVE) unreliable.push(fp);
     }
 
     const present = Object.entries(values)

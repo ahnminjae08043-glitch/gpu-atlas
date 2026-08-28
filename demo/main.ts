@@ -192,8 +192,9 @@ function renderComparison(c: Comparison) {
   const parts: string[] = [];
 
   parts.push(section('Compared devices', `<div class="panel"><dl class="kv">
-    ${c.devices.map((d) => kv(short(d.fingerprint),
-      `${esc(d.label)}${d.mobile ? ' <span class="n">(mobile)</span>' : ''}`)).join('')}
+    ${c.devices.map((d) => kvHtml(short(d.fingerprint),
+      `${esc(d.label)}${d.mobile ? ' <span class="n">(mobile)</span>' : ''}`
+      + `${d.staleBenchmarks ? ` <span class="flag">(schema ${d.schema}, benchmarks not comparable)</span>` : ''}`)).join('')}
   </dl>${c.excluded.length ? `<p class="hint x">${c.excluded.map((e) =>
     esc(`profile #${e.index}: ${e.reason}`)).join('<br>')}</p>` : ''}</div>`));
 
@@ -277,11 +278,12 @@ function render(p: AtlasProfile) {
     ${kv('architecture', p.adapter?.architecture || '(not exposed)')}
     ${kv('device', p.adapter?.device || '(not exposed)')}
     ${kv('description', p.adapter?.description || '(not exposed)')}
-    ${kv('fallback adapter', p.adapter?.isFallbackAdapter ? '<span class="x">yes — software rendering</span>' : 'no')}
-    ${kv('browser', `${esc(p.environment.browser)} ${esc(p.environment.browserVersion)}`)}
-    ${kv('platform', esc(p.environment.platform ?? '(unknown)'))}
+    ${kvHtml('fallback adapter', p.adapter?.isFallbackAdapter
+      ? '<span class="x">yes — software rendering</span>' : 'no')}
+    ${kv('browser', `${p.environment.browser} ${p.environment.browserVersion}`)}
+    ${kv('platform', p.environment.platform ?? '(unknown)')}
     ${kv('mobile', p.environment.mobile ? 'yes' : 'no')}
-    ${kv('preferredCanvasFormat', esc(p.declared?.preferredCanvasFormat ?? ''))}
+    ${kv('preferredCanvasFormat', p.declared?.preferredCanvasFormat ?? '')}
     ${kv('fingerprint', p.fingerprint)}
     ${kv('probe duration', `${p.elapsedMs}ms`)}
   </dl></div>`));
@@ -393,8 +395,14 @@ function bytes(limit: string, n: number): string {
 const section = (title: string, body: string) =>
   `<section><h2>${esc(title)}</h2>${body}</section>`;
 
-// Values are pre-escaped or intentional markup by the caller.
-const kv = (k: string, v: string) => `<dt>${esc(k)}</dt><dd>${v}</dd>`;
+/**
+ * Escapes by default. Profile fields can come from an uploaded file, so a
+ * helper that trusts its input is a trap sitting next to untrusted data.
+ */
+const kv = (k: string, v: string) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`;
+
+/** For the few rows that intentionally carry markup */
+const kvHtml = (k: string, html: string) => `<dt>${esc(k)}</dt><dd>${html}</dd>`;
 
 function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) =>

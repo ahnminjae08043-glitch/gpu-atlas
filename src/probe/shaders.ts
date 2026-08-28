@@ -6,7 +6,7 @@
 // Compile time is measured too — on slow devices it is the main cause of
 // first-frame stalls.
 
-import type { ShaderCase, ShaderMessage } from '../types.js';
+import type { ProbeError, ShaderCase, ShaderMessage } from '../types.js';
 import { capture } from './errors.js';
 
 interface CaseSpec {
@@ -270,6 +270,6 @@ async function runCase(device: GPUDevice, spec: CaseSpec): Promise<ShaderCase> {
   return result;
 }
 
-function toMessage(text: string): ShaderMessage {
-  return { type: 'error', message: text, lineNum: 0 };
+function toMessage(e: ProbeError): ShaderMessage {
+  return { type: 'error', message: e.message, lineNum: 0 };
 }

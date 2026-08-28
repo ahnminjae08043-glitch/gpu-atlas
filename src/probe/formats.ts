@@ -5,9 +5,9 @@
 // here. Every entry is decided by actually creating the resource, building the
 // pipeline, and running the pass.
 
-import type { FormatSupport } from '../types.js';
+import type { FormatSupport, ProbeError } from '../types.js';
 import { FORMATS, sampleTypeOf, wgslTextureType, type FormatMeta } from './format-table.js';
-import { capture, dispose, works } from './errors.js';
+import { atStage, capture, dispose, works } from './errors.js';
 
 const VERTEX_WGSL = `
 @vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
@@ -79,7 +79,7 @@ async function probeOne(
   );
   result.creatable = created.ok;
   if (!created.ok) {
-    result.errors.push(...prefix('create', created.errors));
+    result.errors.push(...atStage('create', created.errors));
     // Nothing else is worth checking if it cannot even be created.
     return result;
   }
@@ -88,7 +88,7 @@ async function probeOne(
   // 2. Can a shader read it
   const sampled = await probeSampleable(device, meta, tex, scratch);
   result.sampleable = sampled.ok;
-  if (!sampled.ok) result.errors.push(...prefix('sample', sampled.errors));
+  if (!sampled.ok) result.errors.push(...atStage('sample', sampled.errors));
   dispose(tex);
 
   // 3. Does it work as a render target / 4. does blending work
@@ -97,16 +97,16 @@ async function probeOne(
   } else if (meta.kind === 'depth') {
     const r = await probeDepthRenderable(device, meta);
     result.renderable = r.ok;
-    if (!r.ok) result.errors.push(...prefix('render', r.errors));
+    if (!r.ok) result.errors.push(...atStage('render', r.errors));
   } else {
     const r = await probeColorRenderable(device, meta, false);
     result.renderable = r.ok;
-    if (!r.ok) result.errors.push(...prefix('render', r.errors));
+    if (!r.ok) result.errors.push(...atStage('render', r.errors));
 
     if (result.renderable) {
       const b = await probeColorRenderable(device, meta, true);
       result.blendable = b.ok;
-      if (!b.ok) result.errors.push(...prefix('blend', b.errors));
+      if (!b.ok) result.errors.push(...atStage('blend', b.errors));
     }
   }
 
@@ -114,14 +114,14 @@ async function probeOne(
   if (meta.kind === 'color') {
     const s = await probeStorage(device, meta);
     result.storageWritable = s.ok;
-    if (!s.ok) result.errors.push(...prefix('storage', s.errors));
+    if (!s.ok) result.errors.push(...atStage('storage', s.errors));
   }
 
   // 6. 4x MSAA
   if (result.renderable) {
     const m = await probeMultisample(device, meta);
     result.multisample4x = m.ok;
-    if (!m.ok) result.errors.push(...prefix('msaa4x', m.errors));
+    if (!m.ok) result.errors.push(...atStage('msaa4x', m.errors));
   }
 
   return result;
@@ -134,7 +134,7 @@ async function probeSampleable(
   meta: FormatMeta,
   tex: GPUTexture,
   scratch: Scratch,
-): Promise<{ ok: boolean; errors: string[] }> {
+): Promise<{ ok: boolean; errors: ProbeError[] }> {
   const needsSampler = meta.kind === 'compressed';
   const sampleType = sampleTypeOf(meta);
 
@@ -202,7 +202,7 @@ async function probeColorRenderable(
   device: GPUDevice,
   meta: FormatMeta,
   blend: boolean,
-): Promise<{ ok: boolean; errors: string[] }> {
+): Promise<{ ok: boolean; errors: ProbeError[] }> {
   return works(device, async () => {
     const tex = device.createTexture({
       size: [4, 4],
@@ -249,7 +249,7 @@ async function probeColorRenderable(
 async function probeDepthRenderable(
   device: GPUDevice,
   meta: FormatMeta,
-): Promise<{ ok: boolean; errors: string[] }> {
+): Promise<{ ok: boolean; errors: ProbeError[] }> {
   return works(device, async () => {
     const tex = device.createTexture({
       size: [4, 4],
@@ -302,7 +302,7 @@ async function probeDepthRenderable(
 async function probeStorage(
   device: GPUDevice,
   meta: FormatMeta,
-): Promise<{ ok: boolean; errors: string[] }> {
+): Promise<{ ok: boolean; errors: ProbeError[] }> {
   return works(device, async () => {
     const tex = device.createTexture({
       size: [4, 4],
@@ -343,7 +343,7 @@ async function probeStorage(
 async function probeMultisample(
   device: GPUDevice,
   meta: FormatMeta,
-): Promise<{ ok: boolean; errors: string[] }> {
+): Promise<{ ok: boolean; errors: ProbeError[] }> {
   return works(device, async () => {
     const tex = device.createTexture({
       size: [4, 4],
@@ -457,8 +457,4 @@ function colorFragmentWGSL(meta: FormatMeta): string {
 @fragment fn fs() -> @location(0) vec4f {
   return vec4f(1., 0., 0., 1.);
 }`;
-}
-
-function prefix(stage: string, errors: string[]): string[] {
-  return errors.map((e) => `[${stage}] ${e}`);
 }

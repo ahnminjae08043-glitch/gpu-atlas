@@ -13,6 +13,7 @@ import type {
   BenchmarkResults,
 } from '../types.js';
 import { findMeta, expectationsFor, toleratesExtraStorage } from './format-table.js';
+import { firstMessage } from './errors.js';
 
 export function analyze(
   formats: FormatSupport[],
@@ -33,8 +34,8 @@ export function analyze(
         kind: 'format-declared-not-usable',
         subject: f.format,
         detail: f.requiresFeature
-          ? `${f.requiresFeature} is declared but createTexture fails: ${first(f.errors)}`
-          : `core format, yet createTexture fails: ${first(f.errors)}`,
+          ? `${f.requiresFeature} is declared but createTexture fails: ${firstMessage(f.errors)}`
+          : `core format, yet createTexture fails: ${firstMessage(f.errors)}`,
         severity: 'breaking',
       });
       continue;
@@ -46,7 +47,7 @@ export function analyze(
       out.push({
         kind: 'format-declared-not-usable',
         subject: f.format,
-        detail: `the texture is created but shader sampling fails: ${first(f.errors)}`,
+        detail: `the texture is created but shader sampling fails: ${firstMessage(f.errors)}`,
         severity: 'breaking',
       });
     }
@@ -71,7 +72,7 @@ export function analyze(
       out.push({
         kind: 'format-declared-not-usable',
         subject: f.format,
-        detail: `should be a valid render target per spec, but the render pass fails: ${first(f.errors)}`,
+        detail: `should be a valid render target per spec, but the render pass fails: ${firstMessage(f.errors)}`,
         severity: 'breaking',
       });
     }
@@ -87,7 +88,7 @@ export function analyze(
       out.push({
         kind: 'format-declared-not-usable',
         subject: f.format,
-        detail: `should work as a storage texture per spec, but fails: ${first(f.errors)}`,
+        detail: `should work as a storage texture per spec, but fails: ${firstMessage(f.errors)}`,
         severity: 'breaking',
       });
     }
@@ -110,7 +111,7 @@ export function analyze(
       subject: l.limit,
       detail:
         `declares ${fmt(l.declared)} but only reaches ${fmt(l.achieved)}` +
-        ` (${(ratio * 100).toFixed(0)}%). ${l.error ?? ''}`.trimEnd(),
+        ` (${(ratio * 100).toFixed(0)}%). ${l.error?.message ?? ''}`.trimEnd(),
       // Below half, code written against the declared value simply dies.
       severity: ratio < 0.5 ? 'breaking' : 'degraded',
     });
@@ -173,10 +174,6 @@ export function analyze(
   }
 
   return out;
-}
-
-function first(errors: string[]): string {
-  return errors[0] ?? 'no error message';
 }
 
 function firstError(s: ShaderCase): string {

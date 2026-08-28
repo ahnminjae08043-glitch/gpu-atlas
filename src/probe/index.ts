@@ -8,6 +8,7 @@ import { probeShaders } from './shaders.js';
 import { probeLimits } from './limits.js';
 import { runBenchmarks } from './bench.js';
 import { analyze } from './discrepancies.js';
+import { fingerprint } from './fingerprint.js';
 
 /** Relative weight of each stage — benchmarking dominates */
 const WEIGHTS = { formats: 0.25, shaders: 0.1, limits: 0.15, bench: 0.5 };
@@ -44,7 +45,14 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
     return {
       ...base,
       unavailable: e instanceof WebGPUUnavailable ? e.message : describe(e),
-      fingerprint: fingerprint(environment.browser, environment.browserVersion, null),
+      fingerprint: await fingerprint({
+        browser: environment.browser,
+        browserVersion: environment.browserVersion,
+        vendor: '',
+        architecture: '',
+        device: '',
+        description: '',
+      }),
       elapsedMs: performance.now() - started,
     };
   }
@@ -125,7 +133,14 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
 
   const profile: AtlasProfile = {
     ...base,
-    fingerprint: fingerprint(environment.browser, environment.browserVersion, identity),
+    fingerprint: await fingerprint({
+      browser: environment.browser,
+      browserVersion: environment.browserVersion,
+      vendor: identity.vendor,
+      architecture: identity.architecture,
+      device: identity.device,
+      description: identity.description,
+    }),
     adapter: identity,
     declared,
     verified,
@@ -136,36 +151,6 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
 
   device.destroy();
   return profile;
-}
-
-/**
- * Hash grouping the same device + browser combination.
- * Not an identifier for a person — only adapter identity and browser major.
- */
-function fingerprint(
-  browser: string,
-  version: string,
-  identity: { vendor: string; architecture: string; device: string; description: string } | null,
-): string {
-  const major = version.split('.')[0] ?? '';
-  const parts = [
-    browser,
-    major,
-    identity?.vendor ?? '',
-    identity?.architecture ?? '',
-    identity?.device ?? '',
-    identity?.description ?? '',
-  ];
-  return fnv1a(parts.join('|'));
-}
-
-function fnv1a(text: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h.toString(16).padStart(8, '0');
 }
 
 function describe(e: unknown): string {

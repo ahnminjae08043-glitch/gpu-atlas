@@ -46,7 +46,7 @@ const MIN_TICKS = 100;
  * coarse enough on some browsers (1ms in Safari) that demanding 100 would make
  * every draw-call benchmark take several seconds.
  */
-const MIN_WALL_TICKS = 30;
+const MIN_WALL_TICKS = 60;
 /** Below this many ticks a measurement is reported as quantized */
 const QUANTIZED_BELOW_TICKS = 20;
 /** Cap on the repetition multiplier, so slow devices still finish */
@@ -97,6 +97,35 @@ const ACCUMULATE: GPUBlendState = {
   alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
 };
 
+/** Every benchmark renders into the same target format */
+const TARGET_FORMAT: GPUTextureFormat = 'rgba8unorm';
+
+/**
+ * Build the render pipeline a benchmark needs.
+ *
+ * Takes WGSL source, or an already-created module for the cases that build
+ * several pipelines from one shader shape.
+ */
+function renderPipeline(
+  device: GPUDevice,
+  codeOrModule: string | GPUShaderModule,
+  blend?: GPUBlendState,
+): Promise<GPURenderPipeline> {
+  const module = typeof codeOrModule === 'string'
+    ? device.createShaderModule({ code: codeOrModule })
+    : codeOrModule;
+
+  return device.createRenderPipelineAsync({
+    layout: 'auto',
+    vertex: { module, entryPoint: 'vs' },
+    fragment: {
+      module,
+      entryPoint: 'fs',
+      targets: [blend ? { format: TARGET_FORMAT, blend } : { format: TARGET_FORMAT }],
+    },
+  });
+}
+
 const DRAWS_PER_REP = 2_000;
 const TRIS_PER_REP = 100_000;
 
@@ -108,12 +137,7 @@ const SPECS: BenchSpec[] = [
     unit: 'draws/s',
     timingMode: 'wall-clock-only',
     setup: async (device, view) => {
-      const module = device.createShaderModule({ code: DEGENERATE_VS + SOLID_FS });
-      const pipeline = await device.createRenderPipelineAsync({
-        layout: 'auto',
-        vertex: { module, entryPoint: 'vs' },
-        fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
-      });
+      const pipeline = await renderPipeline(device, DEGENERATE_VS + SOLID_FS);
       return {
         record(encoder, reps, writes) {
           const pass = beginPass(encoder, view, writes);
@@ -135,15 +159,8 @@ const SPECS: BenchSpec[] = [
       const pipelines: GPURenderPipeline[] = [];
       for (let i = 0; i < 8; i++) {
         // Vary the shader slightly so these really are distinct pipelines.
-        const module = device.createShaderModule({
-          code: DEGENERATE_VS + `
-@fragment fn fs() -> @location(0) vec4f { return vec4f(${(i / 8).toFixed(3)}, 0.5, 0.75, 1.); }`,
-        });
-        pipelines.push(await device.createRenderPipelineAsync({
-          layout: 'auto',
-          vertex: { module, entryPoint: 'vs' },
-          fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
-        }));
+        pipelines.push(await renderPipeline(device, DEGENERATE_VS + `
+@fragment fn fs() -> @location(0) vec4f { return vec4f(${(i / 8).toFixed(3)}, 0.5, 0.75, 1.); }`));
       }
       return {
         record(encoder, reps, writes) {
@@ -165,18 +182,11 @@ const SPECS: BenchSpec[] = [
     unit: 'binds/s',
     timingMode: 'wall-clock-only',
     setup: async (device, view) => {
-      const module = device.createShaderModule({
-        code: `
+      const pipeline = await renderPipeline(device, `
 struct U { tint: vec4f };
 @group(0) @binding(0) var<uniform> u: U;
 ${DEGENERATE_VS}
-@fragment fn fs() -> @location(0) vec4f { return u.tint; }`,
-      });
-      const pipeline = await device.createRenderPipelineAsync({
-        layout: 'auto',
-        vertex: { module, entryPoint: 'vs' },
-        fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
-      });
+@fragment fn fs() -> @location(0) vec4f { return u.tint; }`);
       const layout = pipeline.getBindGroupLayout(0);
       const buffers: GPUBuffer[] = [];
       const groups: GPUBindGroup[] = [];
@@ -214,16 +224,7 @@ ${DEGENERATE_VS}
     unit: 'MPixel/s',
     timingMode: 'gpu-preferred',
     setup: async (device, view) => {
-      const module = device.createShaderModule({ code: FULLSCREEN_VS + SOLID_FS });
-      const pipeline = await device.createRenderPipelineAsync({
-        layout: 'auto',
-        vertex: { module, entryPoint: 'vs' },
-        fragment: {
-          module,
-          entryPoint: 'fs',
-          targets: [{ format: 'rgba8unorm', blend: ACCUMULATE }],
-        },
-      });
+      const pipeline = await renderPipeline(device, FULLSCREEN_VS + SOLID_FS, ACCUMULATE);
       return {
         record(encoder, reps, writes) {
           const pass = beginPass(encoder, view, writes);
@@ -254,15 +255,7 @@ ${DEGENERATE_VS}
   return vec4f(acc * 0.01, p.y, p.z, 1.);
 }`,
       });
-      const pipeline = await device.createRenderPipelineAsync({
-        layout: 'auto',
-        vertex: { module, entryPoint: 'vs' },
-        fragment: {
-          module,
-          entryPoint: 'fs',
-          targets: [{ format: 'rgba8unorm', blend: ACCUMULATE }],
-        },
-      });
+      const pipeline = await renderPipeline(device, module, ACCUMULATE);
       return {
         record(encoder, reps, writes) {
           const pass = beginPass(encoder, view, writes);
@@ -293,11 +286,7 @@ ${DEGENERATE_VS}
 }
 ${SOLID_FS}`,
       });
-      const pipeline = await device.createRenderPipelineAsync({
-        layout: 'auto',
-        vertex: { module, entryPoint: 'vs' },
-        fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
-      });
+      const pipeline = await renderPipeline(device, module);
       return {
         record(encoder, reps, writes) {
           const pass = beginPass(encoder, view, writes);
@@ -341,15 +330,7 @@ ${FULLSCREEN_VS}
   return acc * 0.03125;
 }`,
       });
-      const pipeline = await device.createRenderPipelineAsync({
-        layout: 'auto',
-        vertex: { module, entryPoint: 'vs' },
-        fragment: {
-          module,
-          entryPoint: 'fs',
-          targets: [{ format: 'rgba8unorm', blend: ACCUMULATE }],
-        },
-      });
+      const pipeline = await renderPipeline(device, module, ACCUMULATE);
       const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
       const bindGroup = device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
@@ -417,14 +398,9 @@ async function calibrateResolution(
   });
   const view = tex.createView();
 
-  const module = device.createShaderModule({ code: FULLSCREEN_VS + SOLID_FS });
   let pipeline: GPURenderPipeline;
   try {
-    pipeline = await device.createRenderPipelineAsync({
-      layout: 'auto',
-      vertex: { module, entryPoint: 'vs' },
-      fragment: { module, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
-    });
+    pipeline = await renderPipeline(device, FULLSCREEN_VS + SOLID_FS);
   } catch {
     dispose(tex);
     return null;
@@ -581,16 +557,22 @@ async function measure(
       return { ...base, failed: 'no measurements were obtained' };
     }
 
-    const med = median(times);
-    const workload = spec.unitWorkload * reps;
     const fromGpuTimer = gpuTimed > times.length / 2;
+
+    // Wall-clock samples carry scheduler noise the GPU timer does not, and it is
+    // one-sided: an interrupted sample is slow, never fast. Dropping the
+    // extremes keeps a single hiccup from moving the reported figure.
+    const usable = fromGpuTimer ? times : trimExtremes(times);
+
+    const med = median(usable);
+    const workload = spec.unitWorkload * reps;
     const result: BenchResult = {
       ...base,
       medianMs: round(med, 4),
-      minMs: round(Math.min(...times), 4),
-      variation: round(variation(times), 3),
+      minMs: round(Math.min(...usable), 4),
+      variation: round(variation(usable), 3),
       timing: fromGpuTimer ? 'timestamp-query' : 'wall-clock',
-      samples: times.length,
+      samples: usable.length,
       repetitions: reps,
     };
 
@@ -641,6 +623,13 @@ async function once(
     if (gpuNs !== null && gpuNs > 0) return { ms: gpuNs / 1e6, fromGpu: true };
   }
   return { ms: wall, fromGpu: false };
+}
+
+/** Drop the highest and lowest sample, when there are enough to spare them */
+function trimExtremes(values: number[]): number[] {
+  if (values.length < 5) return values;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted.slice(1, -1);
 }
 
 function beginPass(

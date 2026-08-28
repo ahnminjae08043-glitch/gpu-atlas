@@ -5,12 +5,19 @@
 // call in all three scope types and, where it matters, waits for the queue to
 // actually finish the work before judging. Skipping that order lets failures
 // slip through silently.
+//
+// Errors are kept structured rather than formatted into strings. A consumer
+// asking "did this fail because the format is unsupported, or because we ran
+// out of memory?" should not have to match on message text — that is the same
+// fragility that string-matching skipped shader cases had.
+
+import type { ProbeError, ProbeErrorKind } from '../types.js';
 
 const SCOPES: GPUErrorFilter[] = ['validation', 'out-of-memory', 'internal'];
 
 export interface Captured<T> {
   value: T | null;
-  errors: string[];
+  errors: ProbeError[];
   ok: boolean;
 }
 
@@ -27,19 +34,19 @@ export async function capture<T>(
   for (const scope of SCOPES) device.pushErrorScope(scope);
 
   let value: T | null = null;
-  const errors: string[] = [];
+  const errors: ProbeError[] = [];
 
   try {
     value = await fn();
   } catch (e) {
-    errors.push(`throw: ${describe(e)}`);
+    errors.push({ kind: 'exception', message: describe(e) });
   }
 
   if (settle && errors.length === 0) {
     try {
       await device.queue.onSubmittedWorkDone();
     } catch (e) {
-      errors.push(`queue: ${describe(e)}`);
+      errors.push({ kind: 'queue', message: describe(e) });
     }
   }
 
@@ -47,10 +54,10 @@ export async function capture<T>(
   for (let i = SCOPES.length - 1; i >= 0; i--) {
     try {
       const err = await device.popErrorScope();
-      if (err) errors.push(`${SCOPES[i]}: ${err.message}`);
+      if (err) errors.push({ kind: SCOPES[i] as ProbeErrorKind, message: err.message });
     } catch (e) {
       // If the device is already gone, popErrorScope itself rejects.
-      errors.push(`${SCOPES[i]}-scope-failed: ${describe(e)}`);
+      errors.push({ kind: 'scope-unavailable', message: describe(e) });
     }
   }
 
@@ -62,13 +69,23 @@ export async function works(
   device: GPUDevice,
   fn: () => unknown | Promise<unknown>,
   settle = false,
-): Promise<{ ok: boolean; errors: string[] }> {
+): Promise<{ ok: boolean; errors: ProbeError[] }> {
   const r = await capture(device, async () => {
     const v = await fn();
     // capture() treats null as failure, so functions returning undefined need a value.
     return v === undefined ? true : v;
   }, settle);
   return { ok: r.ok, errors: r.errors };
+}
+
+/** Tag errors with the check that produced them */
+export function atStage(stage: ProbeError['stage'], errors: ProbeError[]): ProbeError[] {
+  return errors.map((e) => ({ ...e, stage }));
+}
+
+/** First error message, for places that need one line of explanation */
+export function firstMessage(errors: ProbeError[]): string {
+  return errors[0]?.message ?? 'no error reported';
 }
 
 function describe(e: unknown): string {

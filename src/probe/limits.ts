@@ -5,13 +5,13 @@
 // dies on one specific device. This starts from the declared value and bisects
 // down to the real ceiling.
 
-import type { LimitProbe } from '../types.js';
+import type { LimitProbe, ProbeError } from '../types.js';
 import { dispose, works } from './errors.js';
 
 /** Bisection step cap — trades precision against how long the probe takes */
 const BISECT_STEPS = 10;
 
-type Tester = (device: GPUDevice, value: number) => Promise<{ ok: boolean; errors: string[] }>;
+type Tester = (device: GPUDevice, value: number) => Promise<{ ok: boolean; errors: ProbeError[] }>;
 
 interface LimitSpec {
   limit: string;
@@ -184,7 +184,11 @@ export async function probeLimits(
       declared: declaredValue,
       achieved,
       honored: false,
-      error: full.errors[0] ?? 'refused for an unreported reason',
+      error: full.errors[0] ?? {
+        kind: 'validation',
+        message: 'refused for an unreported reason',
+        stage: 'limit',
+      },
     });
   }
 

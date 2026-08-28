@@ -197,10 +197,14 @@ removed, or changes meaning. The history is kept in `src/types.ts`.
 
 Version 2 made measurement trustworthiness explicit — tick counts, quantization
 flags, measured timer resolutions — and changed the overdraw benchmarks to blend
-additively. `compareProfiles` accepts older profiles and still compares their
-capability data, but marks their benchmark numbers `staleBenchmarks` and treats
-them as unreliable, because a version 1 profile's silence about quantization
-means "not recorded" rather than "fine".
+additively. Version 3 made errors structured rather than preformatted strings,
+and widened the fingerprint from 32 bits to 128, since the narrow version
+collided at a rate that mattered once profiles were being collected in bulk.
+
+`compareProfiles` accepts older profiles and still compares their capability
+data, but marks pre-v2 benchmark numbers `staleBenchmarks` and treats them as
+unreliable, because a version 1 profile's silence about quantization means
+"not recorded" rather than "fine".
 
 ## Contributing
 
@@ -211,8 +215,14 @@ npm run dev     # demo at /demo/
 ```
 
 The probe needs a real GPU, so it is verified by running the demo on actual
-devices. Everything that does not — profile comparison, quantization detection —
-is unit tested and runs in CI.
+devices. Everything that does not — profile comparison, quantization detection,
+discrepancy analysis, fingerprinting — is unit tested and runs in CI.
+
+Automating the probe itself was attempted and does not currently work:
+Playwright's bundled Chromium ships without WebGPU, and driving a system Chrome
+through it leaves `navigator.gpu` undefined regardless of `--enable-unsafe-swiftshader`,
+`--use-angle=swiftshader`, or headed mode. Deno's built-in WebGPU looks like the
+more promising route for anyone who wants to try again.
 
 ## Status
 

@@ -16,6 +16,19 @@
  * changes meaning, and record why below — consumers compare against it to know
  * which fields they can rely on.
  *
+ * 3 — Errors became structured, and fingerprints got wider.
+ *     Wall-clock benchmarks also changed: they now scale to 60 ticks of the
+ *     measured performance.now() granularity and drop their extreme samples,
+ *     so those figures shift by a few percent against version 2. GPU-timed
+ *     benchmarks are unaffected, which is why version 2 profiles remain
+ *     comparable rather than being cut off.
+ *     ~ FormatSupport.errors and LimitProbe.error are now ProbeError objects
+ *       rather than preformatted strings, so a consumer can branch on why
+ *       something failed without matching on message text.
+ *     ~ AtlasProfile.fingerprint is a 32-character hash instead of 8. The old
+ *       32-bit value collided at a rate that mattered once profiles were being
+ *       collected in bulk.
+ *
  * 2 — Measurement trustworthiness became explicit.
  *     + BenchResult.repetitions   how far auto-scaling pushed each benchmark
  *     + BenchResult.ticks         duration in timer-resolution units
@@ -29,7 +42,7 @@
  *
  * 1 — Initial schema.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /**
  * Below this, benchmark numbers cannot be trusted for comparison: version 1
@@ -76,6 +89,37 @@ export interface DeclaredCapabilities {
   preferredCanvasFormat: string;
 }
 
+// ── Errors ──────────────────────────────────────────────
+
+/**
+ * Why something failed. `validation` and `out-of-memory` come straight from
+ * WebGPU error scopes; `exception` means the call threw synchronously, which is
+ * what browsers do for a format they do not recognise at all.
+ */
+export type ProbeErrorKind =
+  | 'validation'
+  | 'out-of-memory'
+  | 'internal'
+  | 'exception'
+  | 'queue'
+  | 'scope-unavailable';
+
+/** Which check was running when an error surfaced */
+export type ProbeStage =
+  | 'create'
+  | 'sample'
+  | 'render'
+  | 'blend'
+  | 'storage'
+  | 'msaa4x'
+  | 'limit';
+
+export interface ProbeError {
+  kind: ProbeErrorKind;
+  message: string;
+  stage?: ProbeStage;
+}
+
 // ── Verified capabilities ───────────────────────────────
 
 /** Whether a texture format actually works for each usage */
@@ -98,7 +142,7 @@ export interface FormatSupport {
   /** Works as a 4x MSAA render target */
   multisample4x: boolean;
   /** Errors captured at each stage, for diagnosis */
-  errors: string[];
+  errors: ProbeError[];
 }
 
 /** Result of one WGSL compilation case */
@@ -131,7 +175,7 @@ export interface LimitProbe {
   achieved: number;
   /** achieved < declared means the declaration was not honored */
   honored: boolean;
-  error?: string;
+  error?: ProbeError;
 }
 
 export interface VerifiedCapabilities {
@@ -216,7 +260,11 @@ export interface Discrepancy {
 export interface AtlasProfile {
   schema: number;
   capturedAt: string;
-  /** Stable hash grouping the same device + browser combination */
+  /**
+   * Stable hash grouping the same device + browser combination. 32 hex
+   * characters — wide enough that collisions stay negligible across a large
+   * collection of profiles, which an 8-character hash was not.
+   */
   fingerprint: string;
   environment: EnvironmentInfo;
   adapter: AdapterIdentity | null;
