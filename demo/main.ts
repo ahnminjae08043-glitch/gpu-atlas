@@ -1,6 +1,7 @@
 import { probe, compareProfiles } from '../src/index.js';
 import type { AtlasProfile, FormatSupport } from '../src/types.js';
 import type { Comparison } from '../src/compare.js';
+import { asProfile, parseLoose } from './parse.js';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 
@@ -116,54 +117,11 @@ compareBtn.onclick = () => {
 /** Accept a profile-shaped object, returning how many were taken */
 function ingest(obj: unknown): number {
   const list = Array.isArray(obj) ? obj : [obj];
-  let n = 0;
   for (const item of list) {
-    const p = item as AtlasProfile;
-    if (!p || typeof p !== 'object' || typeof p.fingerprint !== 'string' || !p.schema) {
-      throw new Error('not a gpu-atlas profile');
-    }
+    const p = asProfile(item);
     loaded.set(p.fingerprint, p);
-    n++;
   }
-  return n;
-}
-
-/** Parse one JSON value, an array, or several concatenated objects */
-function parseLoose(text: string): unknown[] {
-  try {
-    const v = JSON.parse(text);
-    return Array.isArray(v) ? v : [v];
-  } catch {
-    // Fall through to scanning for consecutive top-level objects.
-  }
-
-  const out: unknown[] = [];
-  let depth = 0;
-  let start = -1;
-  let inString = false;
-  let escaped = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (c === '\\') escaped = true;
-      else if (c === '"') inString = false;
-      continue;
-    }
-    if (c === '"') inString = true;
-    else if (c === '{') { if (depth === 0) start = i; depth++; }
-    else if (c === '}') {
-      depth--;
-      if (depth === 0 && start >= 0) {
-        out.push(JSON.parse(text.slice(start, i + 1)));
-        start = -1;
-      }
-    }
-  }
-
-  if (out.length === 0) throw new Error('could not parse any JSON object');
-  return out;
+  return list.length;
 }
 
 function reportLoaded(added: number, errors: string[]) {

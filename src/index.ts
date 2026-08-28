@@ -11,6 +11,7 @@ export type { FormatMeta, FormatKind } from './probe/format-table.js';
 export { compareProfiles, formatComparison, describeDevice } from './compare.js';
 export type {
   Comparison,
+  FormatOptions,
   DeviceRef,
   FeatureDiff,
   FormatDiff,

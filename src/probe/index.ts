@@ -17,10 +17,13 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
   const {
     powerPreference,
     benchmark = true,
-    benchSamples = 7,
     onProgress,
     formats: onlyFormats,
   } = options;
+
+  // Zero samples produce no measurement at all and a huge count runs for hours;
+  // neither is a request worth honouring literally.
+  const benchSamples = clamp(options.benchSamples ?? 7, 1, 99);
 
   const started = performance.now();
   const environment = await readEnvironment();
@@ -68,8 +71,18 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
 
   const declaredFeatures = new Set(declared.features);
   let done = 0;
+
+  // A progress handler is UI code, and UI code throws. Losing a completed set
+  // of measurements because a progress bar failed would be an absurd trade.
+  const report = (stage: string, ratio: number) => {
+    try {
+      onProgress?.(stage, ratio);
+    } catch {
+      // The caller's problem, not the probe's.
+    }
+  };
   const step = (stage: string, weight: number) => (ratio: number) =>
-    onProgress?.(stage, done + weight * ratio);
+    report(stage, done + weight * ratio);
 
   const verified: VerifiedCapabilities = {
     formats: [],
@@ -79,19 +92,19 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
   };
 
   try {
-    onProgress?.('formats', done);
+    report('formats', done);
     verified.formats = await probeFormats(
       device, declaredFeatures, onlyFormats, step('formats', WEIGHTS.formats),
     );
     done += WEIGHTS.formats;
 
-    onProgress?.('shaders', done);
+    report('shaders', done);
     verified.shaders = await probeShaders(
       device, declaredFeatures, step('shaders', WEIGHTS.shaders),
     );
     done += WEIGHTS.shaders;
 
-    onProgress?.('limits', done);
+    report('limits', done);
     verified.limits = await probeLimits(
       device, declared.limits, step('limits', WEIGHTS.limits),
     );
@@ -103,14 +116,14 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
 
   let benchmarks = null;
   if (benchmark && !verified.deviceLost) {
-    onProgress?.('benchmarks', done);
+    report('benchmarks', done);
     try {
       benchmarks = await runBenchmarks(device, benchSamples, step('benchmarks', WEIGHTS.bench));
     } catch (e) {
       verified.deviceLostReason = deviceLostReason ?? describe(e);
     }
   }
-  onProgress?.('done', 1);
+  report('done', 1);
 
   if (deviceLostReason) {
     verified.deviceLost = true;
@@ -151,6 +164,11 @@ export async function probe(options: ProbeOptions = {}): Promise<AtlasProfile> {
 
   device.destroy();
   return profile;
+}
+
+function clamp(value: number, low: number, high: number): number {
+  if (!Number.isFinite(value)) return low;
+  return Math.min(high, Math.max(low, Math.round(value)));
 }
 
 function describe(e: unknown): string {

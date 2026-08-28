@@ -56,7 +56,6 @@ function profile(o: ProfileOptions): AtlasProfile {
     capturedAt: '2026-08-28T00:00:00.000Z',
     fingerprint: o.fingerprint,
     environment: {
-      userAgent: 'test',
       browser: 'Chrome',
       browserVersion: '151.0.0.0',
       mobile: o.mobile ?? false,

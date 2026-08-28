@@ -16,6 +16,12 @@
  * changes meaning, and record why below — consumers compare against it to know
  * which fields they can rely on.
  *
+ * 4 — EnvironmentInfo.userAgent removed.
+ *     Browser, version, platform and mobile are already parsed into their own
+ *     fields, so the raw string was duplicate data — and a fingerprinting
+ *     vector. A project that asks people to share profiles should not ship
+ *     identifying information it does not use.
+ *
  * 3 — Errors became structured, and fingerprints got wider.
  *     Wall-clock benchmarks also changed: they now scale to 60 ticks of the
  *     measured performance.now() granularity and drop their extreme samples,
@@ -42,7 +48,7 @@
  *
  * 1 — Initial schema.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /**
  * Below this, benchmark numbers cannot be trusted for comparison: version 1
@@ -54,7 +60,6 @@ export const MIN_COMPARABLE_BENCHMARK_SCHEMA = 2;
 // ── Environment ─────────────────────────────────────────
 
 export interface EnvironmentInfo {
-  userAgent: string;
   /** From UA-CH when available */
   platform?: string;
   /** 'Chrome' | 'Firefox' | 'Safari' | 'Edge' | 'unknown' */
@@ -285,7 +290,7 @@ export interface ProbeOptions {
   powerPreference?: GPUPowerPreference;
   /** Run benchmarks. false leaves only capability verification, which is fast */
   benchmark?: boolean;
-  /** Samples per benchmark. More is more accurate and slower */
+  /** Samples per benchmark. More is more accurate and slower. Clamped to 1-99 */
   benchSamples?: number;
   /** Progress callback */
   onProgress?: (stage: string, ratio: number) => void;

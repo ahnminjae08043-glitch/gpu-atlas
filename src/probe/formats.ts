@@ -203,7 +203,12 @@ async function probeColorRenderable(
   meta: FormatMeta,
   blend: boolean,
 ): Promise<{ ok: boolean; errors: ProbeError[] }> {
-  return works(device, async () => {
+  // Held so the texture can be released after works() has awaited the queue.
+  // Doing it in a dangling .then() left an unhandled rejection whenever the
+  // device was lost — precisely the case the probe has to survive.
+  let created: GPUTexture | null = null;
+
+  const result = await works(device, async () => {
     const tex = device.createTexture({
       size: [4, 4],
       format: meta.format as GPUTextureFormat,
@@ -240,17 +245,24 @@ async function probeColorRenderable(
     pass.draw(3);
     pass.end();
     device.queue.submit([enc.finish()]);
-    // The texture can only be released once the submitted work has finished.
-    device.queue.onSubmittedWorkDone().then(() => dispose(tex));
+    created = tex;
     return true;
   }, true);
+
+  dispose(created);
+  return result;
 }
 
 async function probeDepthRenderable(
   device: GPUDevice,
   meta: FormatMeta,
 ): Promise<{ ok: boolean; errors: ProbeError[] }> {
-  return works(device, async () => {
+  // Held so the texture can be released after works() has awaited the queue.
+  // Doing it in a dangling .then() left an unhandled rejection whenever the
+  // device was lost — precisely the case the probe has to survive.
+  let created: GPUTexture | null = null;
+
+  const result = await works(device, async () => {
     const tex = device.createTexture({
       size: [4, 4],
       format: meta.format as GPUTextureFormat,
@@ -294,16 +306,24 @@ async function probeDepthRenderable(
     pass.draw(3);
     pass.end();
     device.queue.submit([enc.finish()]);
-    device.queue.onSubmittedWorkDone().then(() => dispose(tex));
+    created = tex;
     return true;
   }, true);
+
+  dispose(created);
+  return result;
 }
 
 async function probeStorage(
   device: GPUDevice,
   meta: FormatMeta,
 ): Promise<{ ok: boolean; errors: ProbeError[] }> {
-  return works(device, async () => {
+  // Held so the texture can be released after works() has awaited the queue.
+  // Doing it in a dangling .then() left an unhandled rejection whenever the
+  // device was lost — precisely the case the probe has to survive.
+  let created: GPUTexture | null = null;
+
+  const result = await works(device, async () => {
     const tex = device.createTexture({
       size: [4, 4],
       format: meta.format as GPUTextureFormat,
@@ -335,16 +355,24 @@ async function probeStorage(
     pass.dispatchWorkgroups(1);
     pass.end();
     device.queue.submit([enc.finish()]);
-    device.queue.onSubmittedWorkDone().then(() => dispose(tex));
+    created = tex;
     return true;
   }, true);
+
+  dispose(created);
+  return result;
 }
 
 async function probeMultisample(
   device: GPUDevice,
   meta: FormatMeta,
 ): Promise<{ ok: boolean; errors: ProbeError[] }> {
-  return works(device, async () => {
+  // Held so the texture can be released after works() has awaited the queue.
+  // Doing it in a dangling .then() left an unhandled rejection whenever the
+  // device was lost — precisely the case the probe has to survive.
+  let created: GPUTexture | null = null;
+
+  const result = await works(device, async () => {
     const tex = device.createTexture({
       size: [4, 4],
       format: meta.format as GPUTextureFormat,
@@ -406,9 +434,12 @@ async function probeMultisample(
     pass.draw(3);
     pass.end();
     device.queue.submit([enc.finish()]);
-    device.queue.onSubmittedWorkDone().then(() => dispose(tex));
+    created = tex;
     return true;
   }, true);
+
+  dispose(created);
+  return result;
 }
 
 // ── WGSL generation ─────────────────────────────────────

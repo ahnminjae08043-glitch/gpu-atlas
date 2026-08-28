@@ -54,7 +54,11 @@ export async function acquire(
     device = await tryDevice(adapter, features, undefined);
   }
   if (!device) {
-    // Features are a problem too — find the subset that survives.
+    // Features are a problem too — find a subset that survives by adding them
+    // one at a time. This is greedy and order-dependent: a feature that works
+    // alone but conflicts with an earlier one is recorded as denied even though
+    // a different ordering would have kept it. Testing every combination is
+    // exponential, and no implementation has been observed to need it.
     denied.push('requiredFeatures (all)');
     const survivors: GPUFeatureName[] = [];
     for (const f of features) {
@@ -190,7 +194,9 @@ export async function readEnvironment(): Promise<EnvironmentInfo> {
   const parsed = parseUA(ua);
 
   return {
-    userAgent: ua,
+    // The UA string is parsed above but deliberately not kept: everything the
+    // profile needs from it is already broken out, and the raw value only adds
+    // identifying detail to something people are asked to share.
     platform,
     browser: brand ?? parsed.browser,
     browserVersion: brandVersion ?? parsed.version,

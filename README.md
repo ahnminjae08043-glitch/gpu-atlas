@@ -4,7 +4,9 @@
 
 **[Run it on your device →](https://ahnminjae08043-glitch.github.io/gpu-atlas/)**
 Takes a few seconds. Nothing is uploaded; the profile stays in your browser
-unless you save it yourself.
+unless you save it yourself. It records the GPU and browser, not your user agent
+string — a profile is meant to be shareable without handing over more than the
+device description it is about.
 
 ---
 
@@ -200,6 +202,9 @@ flags, measured timer resolutions — and changed the overdraw benchmarks to ble
 additively. Version 3 made errors structured rather than preformatted strings,
 and widened the fingerprint from 32 bits to 128, since the narrow version
 collided at a rate that mattered once profiles were being collected in bulk.
+Version 4 dropped the raw user agent: browser, version, platform and mobile are
+already parsed into their own fields, so keeping the original string added
+identifying detail without adding information.
 
 `compareProfiles` accepts older profiles and still compares their capability
 data, but marks pre-v2 benchmark numbers `staleBenchmarks` and treats them as

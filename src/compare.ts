@@ -318,13 +318,31 @@ function diffBenchmarks(profiles: Indexed[]): BenchDiff[] {
 
 // ── Rendering ───────────────────────────────────────────
 
+export interface FormatOptions {
+  /**
+   * Rows to print per section before summarising the rest. Sections are sorted
+   * worst-first, so the truncated tail is the least interesting part — but a
+   * hundred devices would otherwise produce thousands of lines.
+   */
+  limit?: number;
+}
+
 /**
  * Render a comparison as plain text. Useful for dropping into an issue, a
  * README, or a terminal without building a table by hand.
  */
-export function formatComparison(c: Comparison): string {
+export function formatComparison(c: Comparison, options: FormatOptions = {}): string {
+  const limit = Math.max(1, options.limit ?? 20);
   const lines: string[] = [];
   const short = (fp: string) => fp.slice(0, 8);
+
+  const truncate = <T>(items: T[]): { shown: T[]; hidden: number } => ({
+    shown: items.slice(0, limit),
+    hidden: Math.max(0, items.length - limit),
+  });
+  const noteHidden = (hidden: number, what: string) => {
+    if (hidden > 0) lines.push(`  ... and ${hidden} more ${what}`);
+  };
 
   lines.push('Devices');
   for (const d of c.devices) {
@@ -337,7 +355,8 @@ export function formatComparison(c: Comparison): string {
 
   if (c.benchmarks.length > 0) {
     lines.push('', 'Performance');
-    for (const b of c.benchmarks) {
+    const { shown: benches, hidden: hiddenBenches } = truncate(c.benchmarks);
+    for (const b of benches) {
       const gap = b.ratio ? `${b.ratio.toFixed(1)}x` : '—';
       lines.push(`  ${b.id}  (${b.unit})  gap ${gap}`);
       for (const d of c.devices) {
@@ -346,31 +365,38 @@ export function formatComparison(c: Comparison): string {
         lines.push(`    ${short(d.fingerprint)}  ${v != null ? v.toLocaleString() : '—'}${flag}`);
       }
     }
+    noteHidden(hiddenBenches, 'benchmarks');
   }
 
   if (c.features.length > 0) {
     lines.push('', 'Features not available everywhere');
-    for (const f of c.features) {
+    const { shown, hidden } = truncate(c.features);
+    for (const f of shown) {
       lines.push(`  ${f.feature}  missing on ${f.missingFrom.map(short).join(', ')}`);
     }
+    noteHidden(hidden, 'features');
   }
 
   if (c.formats.length > 0) {
     lines.push('', 'Format capabilities that differ');
-    for (const f of c.formats) {
+    const { shown, hidden } = truncate(c.formats);
+    for (const f of shown) {
       lines.push(`  ${f.format}.${f.capability}  missing on ${f.missingFrom.map(short).join(', ')}`);
     }
+    noteHidden(hidden, 'format capabilities');
   }
 
   if (c.limits.length > 0) {
     lines.push('', 'Limits that differ');
-    for (const l of c.limits) {
+    const { shown: limitRows, hidden: hiddenLimits } = truncate(c.limits);
+    for (const l of limitRows) {
       const gap = Number.isFinite(l.ratio) ? `${l.ratio.toFixed(1)}x` : '—';
       const vals = c.devices
         .map((d) => `${short(d.fingerprint)}=${l.values[d.fingerprint]?.toLocaleString() ?? '—'}`)
         .join('  ');
       lines.push(`  ${l.limit}  gap ${gap}   ${vals}`);
     }
+    noteHidden(hiddenLimits, 'limits');
   }
 
   if (c.excluded.length > 0) {

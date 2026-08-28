@@ -11,7 +11,8 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/gpu-atlas.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
