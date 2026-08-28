@@ -8,7 +8,35 @@
 // Where the two disagree is a Discrepancy, and that is the data this project
 // exists to collect.
 
-export const SCHEMA_VERSION = 1;
+/**
+ * Profile schema version.
+ *
+ * Collecting profiles is the point of this project, so a profile has to say
+ * honestly what shape it is. Bump this whenever a field is added, removed, or
+ * changes meaning, and record why below — consumers compare against it to know
+ * which fields they can rely on.
+ *
+ * 2 — Measurement trustworthiness became explicit.
+ *     + BenchResult.repetitions   how far auto-scaling pushed each benchmark
+ *     + BenchResult.ticks         duration in timer-resolution units
+ *     + BenchResult.quantized     sitting on the quantization floor
+ *     + BenchmarkResults.timerResolutionNs      measured GPU timer granularity
+ *     + BenchmarkResults.wallClockResolutionMs  measured performance.now() granularity
+ *     + ShaderCase.skipped        previously inferred from message text
+ *     Benchmarks also changed: the overdraw ones now blend additively, so their
+ *     numbers are not comparable with version 1 readings taken on tile-based
+ *     deferred GPUs, where the unblended version measured almost nothing.
+ *
+ * 1 — Initial schema.
+ */
+export const SCHEMA_VERSION = 2;
+
+/**
+ * Below this, benchmark numbers cannot be trusted for comparison: version 1
+ * profiles carry no quantization information, and their overdraw benchmarks
+ * were architecture-dependent.
+ */
+export const MIN_COMPARABLE_BENCHMARK_SCHEMA = 2;
 
 // ── Environment ─────────────────────────────────────────
 

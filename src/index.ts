@@ -18,7 +18,7 @@ export type {
   BenchDiff,
 } from './compare.js';
 
-export { SCHEMA_VERSION } from './types.js';
+export { SCHEMA_VERSION, MIN_COMPARABLE_BENCHMARK_SCHEMA } from './types.js';
 export type {
   AtlasProfile,
   ProbeOptions,

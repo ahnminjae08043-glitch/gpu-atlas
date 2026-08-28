@@ -32,6 +32,7 @@
 import type { BenchResult, BenchmarkResults } from '../types.js';
 import { GpuTimer, median, variation } from './timer.js';
 import { dispose } from './errors.js';
+import { estimateBucket } from './quantization.js';
 
 const TARGET = 1024;
 const WARMUP = 3;
@@ -461,50 +462,11 @@ async function calibrateResolution(
 
   dispose(tex);
 
-  const positive = readings.filter((v) => v > 0);
-  if (positive.length < 4) return null;
-
-  const smallest = Math.min(...positive);
-
-  // Smallest gap between distinct readings. Under quantization every reading is
-  // a multiple of the bucket, so gaps are too.
-  const distinct = [...new Set(positive)].sort((a, b) => a - b);
-  let smallestGap = Infinity;
-  for (let i = 1; i < distinct.length; i++) {
-    smallestGap = Math.min(smallestGap, distinct[i] - distinct[i - 1]);
-  }
-
-  const estimate = Math.min(smallest, smallestGap);
-  if (!Number.isFinite(estimate) || estimate <= 0) return null;
-
-  // The candidate has to actually behave like a bucket before it is reported as
-  // one. Under quantization every reading is a multiple of it; on a timer that
-  // is simply fine-grained, the smallest reading is just how long the smallest
-  // workload took and later readings fall wherever they like.
-  //
-  // This matters because the two look identical from a single number. Chromium
-  // returns 65536 here and every reading divides by it exactly. WebKit returns
-  // whatever the shortest pass happened to cost, varying run to run, and
-  // treating that as a resolution made the same machine report a different
-  // timer on consecutive runs.
-  if (!behavesLikeBucket(positive, estimate)) return null;
-
-  return estimate;
-}
-
-/** Whether readings are consistently multiples of the candidate bucket */
-function behavesLikeBucket(readings: number[], bucket: number): boolean {
-  if (bucket <= 0) return false;
-
-  const tolerance = bucket * 0.02;
-  let multiples = 0;
-  for (const v of readings) {
-    const remainder = v % bucket;
-    if (remainder <= tolerance || remainder >= bucket - tolerance) multiples++;
-  }
-
-  // Allow one stray reading; demand the rest line up.
-  return multiples / readings.length >= 0.9;
+  // The estimate has to survive being checked against the readings before it is
+  // reported. See quantization.ts — a single number cannot tell a bucket apart
+  // from the cost of a short workload, and conflating them made the same
+  // machine report a different timer on consecutive runs.
+  return estimateBucket(readings);
 }
 
 export async function runBenchmarks(

@@ -189,6 +189,31 @@ device declares before comparing. What survives is genuine divergence.
 - `degraded` — it works, but slower or with reduced capability
 - `note` — worth recording, not worth acting on
 
+## Profile schema
+
+Profiles are the point of this project, so a profile states which schema it was
+captured under and `SCHEMA_VERSION` is bumped whenever a field is added,
+removed, or changes meaning. The history is kept in `src/types.ts`.
+
+Version 2 made measurement trustworthiness explicit — tick counts, quantization
+flags, measured timer resolutions — and changed the overdraw benchmarks to blend
+additively. `compareProfiles` accepts older profiles and still compares their
+capability data, but marks their benchmark numbers `staleBenchmarks` and treats
+them as unreliable, because a version 1 profile's silence about quantization
+means "not recorded" rather than "fine".
+
+## Contributing
+
+```bash
+npm install
+npm test        # comparison and quantization detection, no GPU needed
+npm run dev     # demo at /demo/
+```
+
+The probe needs a real GPU, so it is verified by running the demo on actual
+devices. Everything that does not — profile comparison, quantization detection —
+is unit tested and runs in CI.
+
 ## Status
 
 Early, and honest about it. **Three devices is not a dataset.** The differences

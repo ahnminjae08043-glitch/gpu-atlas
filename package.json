@@ -1,6 +1,6 @@
 {
   "name": "gpu-atlas",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "What WebGPU actually does on this device — verified by creating the resources and running the passes, not by reading declared limits.",
   "type": "module",
   "license": "MIT",
@@ -19,10 +19,12 @@
   "sideEffects": false,
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run typecheck && npm test && vite build",
     "build:demo": "vite build --mode demo",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "webgpu",
@@ -38,6 +40,7 @@
     "@webgpu/types": "^0.1.60",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
-    "vite-plugin-dts": "^4.4.0"
+    "vite-plugin-dts": "^4.4.0",
+    "vitest": "^4.1.11"
   }
 }

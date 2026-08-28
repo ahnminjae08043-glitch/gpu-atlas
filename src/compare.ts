@@ -7,6 +7,7 @@
 // which no single profile could have revealed.
 
 import type { AtlasProfile, BenchResult } from './types.js';
+import { MIN_COMPARABLE_BENCHMARK_SCHEMA } from './types.js';
 
 export interface DeviceRef {
   fingerprint: string;
@@ -15,6 +16,14 @@ export interface DeviceRef {
   mobile: boolean;
   /** Index into the input array, for callers that need to get back to it */
   index: number;
+  /** Schema version the profile was captured under */
+  schema: number;
+  /**
+   * The profile predates the schema that made measurement trustworthiness
+   * explicit, so its benchmark numbers are reported but never treated as
+   * reliable. Capability data from such profiles is still comparable.
+   */
+  staleBenchmarks: boolean;
 }
 
 export interface FeatureDiff {
@@ -99,11 +108,14 @@ export function compareProfiles(profiles: AtlasProfile[]): Comparison {
       excluded.push({ index, reason: 'profile has no verified data' });
       return;
     }
+    const schema = typeof p.schema === 'number' ? p.schema : 0;
     devices.push({
       fingerprint: p.fingerprint,
       label: describeDevice(p),
       mobile: p.environment.mobile,
       index,
+      schema,
+      staleBenchmarks: schema < MIN_COMPARABLE_BENCHMARK_SCHEMA,
     });
     usable.push(p);
   });
@@ -236,7 +248,13 @@ function diffBenchmarks(profiles: AtlasProfile[]): BenchDiff[] {
         continue;
       }
       values[p.fingerprint] = r.throughput;
-      if (r.quantized || r.variation > UNSTABLE_ABOVE) unreliable.push(p.fingerprint);
+
+      // An older profile has no quantization data at all, so its numbers cannot
+      // be vouched for — silence there means "not recorded", not "fine".
+      const stale = (p.schema ?? 0) < MIN_COMPARABLE_BENCHMARK_SCHEMA;
+      if (stale || r.quantized || r.variation > UNSTABLE_ABOVE) {
+        unreliable.push(p.fingerprint);
+      }
     }
 
     const present = Object.entries(values)
@@ -283,7 +301,11 @@ export function formatComparison(c: Comparison): string {
 
   lines.push('Devices');
   for (const d of c.devices) {
-    lines.push(`  ${short(d.fingerprint)}  ${d.label}${d.mobile ? '  (mobile)' : ''}`);
+    const flags = [
+      d.mobile ? '(mobile)' : '',
+      d.staleBenchmarks ? `(schema ${d.schema} - benchmarks not comparable)` : '',
+    ].filter(Boolean).join(' ');
+    lines.push(`  ${short(d.fingerprint)}  ${d.label}${flags ? '  ' + flags : ''}`);
   }
 
   if (c.benchmarks.length > 0) {
