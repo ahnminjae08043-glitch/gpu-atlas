@@ -126,6 +126,13 @@ export function compareProfiles(profiles: AtlasProfile[]): Comparison {
   const usable: AtlasProfile[] = [];
   const excluded: Comparison['excluded'] = [];
 
+  // Fingerprints key every per-device value in the result, so two profiles
+  // sharing one would silently overwrite each other rather than appear twice.
+  // Comparing repeat runs of the same machine is a reasonable thing to want,
+  // but it needs a different shape than this; saying so is better than
+  // returning a quietly wrong table.
+  const seen = new Set<string>();
+
   profiles.forEach((p, index) => {
     if (p.unavailable) {
       excluded.push({ index, reason: `WebGPU unavailable: ${p.unavailable}` });
@@ -135,6 +142,15 @@ export function compareProfiles(profiles: AtlasProfile[]): Comparison {
       excluded.push({ index, reason: 'profile has no verified data' });
       return;
     }
+    if (seen.has(p.fingerprint)) {
+      excluded.push({
+        index,
+        reason: `duplicate of an earlier profile (${p.fingerprint.slice(0, 8)})`
+          + ' — comparison keys values by fingerprint and cannot hold two',
+      });
+      return;
+    }
+    seen.add(p.fingerprint);
     const schema = typeof p.schema === 'number' ? p.schema : 0;
     devices.push({
       fingerprint: p.fingerprint,

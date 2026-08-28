@@ -277,6 +277,33 @@ describe('compareProfiles: older schemas', () => {
   });
 });
 
+describe('compareProfiles: duplicate fingerprints', () => {
+  it('excludes a second profile with the same fingerprint', () => {
+    // Every per-device value is keyed by fingerprint, so keeping both would
+    // overwrite one with the other and report a table that looks fine.
+    const c = compareProfiles([
+      profile({ fingerprint: 'same', benchmarks: [bench({ id: 'x', throughput: 100 })] }),
+      profile({ fingerprint: 'same', benchmarks: [bench({ id: 'x', throughput: 999 })] }),
+    ]);
+
+    expect(c.devices).toHaveLength(1);
+    expect(c.excluded).toHaveLength(1);
+    expect(c.excluded[0].index).toBe(1);
+    expect(c.excluded[0].reason).toContain('duplicate');
+    // The surviving value is the first one, not a silent mix.
+    expect(c.benchmarks[0].values.same).toBe(100);
+  });
+
+  it('keeps distinct fingerprints', () => {
+    const c = compareProfiles([
+      profile({ fingerprint: 'aaa' }),
+      profile({ fingerprint: 'bbb' }),
+    ]);
+    expect(c.devices).toHaveLength(2);
+    expect(c.excluded).toEqual([]);
+  });
+});
+
 describe('compareProfiles: unusable profiles', () => {
   it('excludes a profile where WebGPU was unavailable', () => {
     const c = compareProfiles([
