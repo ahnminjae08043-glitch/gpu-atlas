@@ -15,7 +15,7 @@ device description it is about.
 | | desktop | tablet | phone |
 |---|---|---|---|
 | GPU | NVIDIA Lovelace | Apple | Adreno 7xx |
-| browser | Chrome 151 | Safari 26.6 | Samsung Internet 30 |
+| browser | Chrome 151, Edge 152 | Safari 26.6 | Samsung Internet 30 |
 | OS | Windows | iPadOS | Android 16 |
 
 The tablet is an iPad, and finding that out took longer than it should have.
@@ -72,6 +72,30 @@ phone reports `rgba8unorm` — an easy thing to build on and have fail on phones
 `maxStorageBufferBindingSize` spans 16x (2.1GB / 716MB / 134MB) and
 `maxBufferSize` 3x.
 
+### The browser barely matters; the device does
+
+Chrome and Edge on the same machine, same GPU, same driver:
+
+| benchmark | Chrome 151 | Edge 152 | ratio |
+|---|---:|---:|---:|
+| triangle throughput | 4,246 MTri/s | 3,906 | 1.09x |
+| texture sampling | 254 GSample/s | 241 | 1.06x |
+| bind group switching | 4,067,797 /s | 4,353,742 | 1.07x |
+| fill rate | 127,117 MPixel/s | 132,129 | 1.04x |
+| fragment ALU | 3,122 MPixel/s | 2,994 | 1.04x |
+| pipeline switching | 1,904,762 /s | 2,170,543 | 1.14x |
+
+Everything lands within 1.14x, against the 65x that separates devices. Draw call
+overhead appeared to differ by 1.63x — but the Chrome run of that benchmark came
+back flagged `unreliable` at 21% variation, so the one axis that looked
+interesting is the one the tool declines to stand behind. That is the flag
+working, not a finding.
+
+Two caveats worth stating: this is Chrome 151 against Edge on Chromium 152, so
+it is not a clean same-version comparison, and Edge declares
+`subgroup-size-control` where Chrome 151 does not — a feature that moved between
+Chromium releases rather than anything Edge added. Declared limits are identical.
+
 ### Browsers quantize GPU timestamps, and by different amounts
 
 `timestamp-query` results are rounded into buckets as a Spectre mitigation.
@@ -80,10 +104,11 @@ Measured rather than assumed:
 | | GPU timer | `performance.now()` |
 |---|---|---|
 | Chrome 151 | 65,536 ns (2^16) | 0.1 ms |
+| Edge 152 | 65,536 ns (2^16) | 0.1 ms |
 | Samsung Internet 30 | 65,536 ns (2^16) | 0.1 ms |
 | Safari 26.6 | no quantization detected | 1 ms |
 
-Both Chromium browsers return exactly 2^16 despite different GPU vendors and
+All three Chromium browsers return exactly 2^16 across two GPU vendors and two
 operating systems, while WebKit does not quantize the GPU timer at all — this is
 browser policy, not hardware.
 
