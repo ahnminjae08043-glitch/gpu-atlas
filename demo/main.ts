@@ -59,8 +59,10 @@ shareBtn.onclick = async () => {
 
   const url = new URL(ISSUES);
   url.searchParams.set('template', 'profile.yml');
-  url.searchParams.set('title', `Profile: ${browser} ${version} on ${device}`);
-  url.searchParams.set('labels', mobile ? 'profile,mobile' : 'profile');
+  // A labels parameter is ignored once template= is present, and the template
+  // can only carry static ones — so the fact worth filtering on goes in the title.
+  const kind = mobile ? ' (mobile)' : '';
+  url.searchParams.set('title', `Profile: ${browser} ${version} on ${device}${kind}`);
   window.open(url.toString(), '_blank', 'noopener');
 
   shareBtn.textContent = copied ? 'Copied — now paste' : 'Use Copy profile first';
