@@ -246,8 +246,24 @@ capabilities — has not held up. All three devices did exactly what they
 declared, zero discrepancies each. The value turned out to be in the gaps
 *between* devices, which is why comparison exists at all.
 
-If you run the probe, saving the JSON and opening an issue with it genuinely
-helps.
+### Contributing a profile
+
+The dataset is the bottleneck, and it takes about a minute to widen it.
+
+1. Open the [demo](https://ahnminjae08043-glitch.github.io/gpu-atlas/) on any
+   device with WebGPU — a phone counts, and phones are underrepresented.
+2. Run the probe, then press **Share profile**. That copies the JSON and opens a
+   prefilled issue.
+3. Paste, and submit.
+
+A profile records the GPU vendor and architecture the browser reports, which
+formats and limits actually worked, timing numbers, and coarse environment facts
+— browser and version, platform, core count, memory bucket, pixel ratio. The raw
+user-agent string is deliberately not collected. Press **Copy profile** first if
+you would rather read the whole thing before posting it.
+
+Crashes are worth reporting too. If the probe fell over, it met something it was
+not built for, and that is a finding.
 
 ## License
 

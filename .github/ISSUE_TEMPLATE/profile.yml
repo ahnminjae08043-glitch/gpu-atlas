@@ -1,0 +1,54 @@
+name: Share a device profile
+description: Report what WebGPU actually does on your device
+title: 'Profile: '
+labels: [profile]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you — this is the most useful thing anyone can contribute right now.
+
+        The dataset is three devices. Firefox and iOS are entirely unmeasured, so
+        nobody knows yet whether the differences found so far generalize.
+
+        Run the probe at **https://ahnminjae08043-glitch.github.io/gpu-atlas/** and
+        press **Share profile**. That copies the JSON and opens this form, so the
+        only thing left is to paste it below.
+
+        **What the profile contains:** GPU vendor and architecture as the browser
+        reports them, which texture formats and limits actually worked, timing
+        numbers, and coarse environment facts (browser name and version, platform,
+        CPU core count, memory bucket, pixel ratio). The raw user-agent string is
+        deliberately not collected. Nothing identifies you personally, but read it
+        before posting — it is plain JSON and yours to inspect.
+
+  - type: textarea
+    id: profile
+    attributes:
+      label: Profile JSON
+      description: Paste it here. The demo has already copied it to your clipboard.
+      render: json
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: What is this device?
+      description: >
+        The part the probe cannot see. Model name, GPU, operating system — whatever
+        you are comfortable sharing. "M2 MacBook Air" or "Pixel 8, Android 15" is plenty.
+      placeholder: e.g. ThinkPad X1 Carbon Gen 11, Intel Iris Xe, Windows 11
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything surprising?
+      description: >
+        If the probe reported discrepancies, flagged a benchmark as unreliable, or
+        crashed outright, say so here. A crash is a genuinely useful report — it
+        means the probe met something it was not built for.
+    validations:
+      required: false

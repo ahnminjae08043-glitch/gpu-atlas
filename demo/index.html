@@ -78,9 +78,15 @@
   <div class="row">
     <button id="run">Run full probe</button>
     <button id="quick" class="ghost">Skip benchmarks</button>
+    <button id="share" class="ghost" disabled>Share profile</button>
     <button id="copy" class="ghost" disabled>Copy profile</button>
     <button id="save" class="ghost" disabled>Save JSON</button>
   </div>
+
+  <p class="hint" id="share-hint">Three devices is not a dataset. <b>Share profile</b>
+    copies this device's JSON and opens a GitHub issue for you to paste it into —
+    no account data, no user-agent string, nothing beyond what you can read in
+    <b>Copy profile</b> first.</p>
 
   <div id="progress">
     <div class="bar"><i></i></div>

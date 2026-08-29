@@ -7,6 +7,7 @@ const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as
 
 const runBtn = $<HTMLButtonElement>('#run');
 const quickBtn = $<HTMLButtonElement>('#quick');
+const shareBtn = $<HTMLButtonElement>('#share');
 const copyBtn = $<HTMLButtonElement>('#copy');
 const saveBtn = $<HTMLButtonElement>('#save');
 const progress = $<HTMLDivElement>('#progress');
@@ -33,6 +34,39 @@ copyBtn.onclick = async () => {
   setTimeout(() => (copyBtn.textContent = 'Copy profile'), 1500);
 };
 
+// The dataset only grows if sharing is easier than not bothering. Two actions:
+// press this, then paste. The JSON is far too large for a prefilled issue body,
+// so the clipboard carries it and the form only has to be opened.
+const ISSUES = 'https://github.com/ahnminjae08043-glitch/gpu-atlas/issues/new';
+
+shareBtn.onclick = async () => {
+  if (!current) return;
+
+  let copied = true;
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(current, null, 2));
+  } catch {
+    // Denied, or an insecure context. Still worth opening the form.
+    copied = false;
+  }
+
+  const { browser, browserVersion, mobile } = current.environment;
+  // A probe can finish without an adapter identity — some browsers withhold it.
+  const device =
+    [current.adapter?.vendor, current.adapter?.architecture].filter(Boolean).join(' ') ||
+    'unknown GPU';
+  const version = browserVersion.split('.')[0];
+
+  const url = new URL(ISSUES);
+  url.searchParams.set('template', 'profile.yml');
+  url.searchParams.set('title', `Profile: ${browser} ${version} on ${device}`);
+  url.searchParams.set('labels', mobile ? 'profile,mobile' : 'profile');
+  window.open(url.toString(), '_blank', 'noopener');
+
+  shareBtn.textContent = copied ? 'Copied — now paste' : 'Use Copy profile first';
+  setTimeout(() => (shareBtn.textContent = 'Share profile'), 4000);
+};
+
 saveBtn.onclick = () => {
   if (!current) return;
   const blob = new Blob([JSON.stringify(current, null, 2)], { type: 'application/json' });
@@ -45,7 +79,7 @@ saveBtn.onclick = () => {
 
 async function run(benchmark: boolean) {
   runBtn.disabled = quickBtn.disabled = true;
-  copyBtn.disabled = saveBtn.disabled = true;
+  shareBtn.disabled = copyBtn.disabled = saveBtn.disabled = true;
   progress.classList.add('on');
   out.innerHTML = '';
 
@@ -58,7 +92,7 @@ async function run(benchmark: boolean) {
       },
     });
     render(current);
-    copyBtn.disabled = saveBtn.disabled = false;
+    shareBtn.disabled = copyBtn.disabled = saveBtn.disabled = false;
   } catch (e) {
     out.innerHTML = `<section><div class="panel x">The probe crashed: ${esc(String(e))}</div></section>`;
   } finally {
