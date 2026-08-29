@@ -180,7 +180,7 @@ export async function readEnvironment(): Promise<EnvironmentInfo> {
     try {
       const high = await uaData.getHighEntropyValues(['platformVersion', 'fullVersionList']);
       const list = high.fullVersionList ?? uaData.brands;
-      const primary = list?.find((b) => !/Not.?A.?Brand/i.test(b.brand));
+      const primary = pickBrand(list);
       if (primary) {
         brand = primary.brand;
         brandVersion = primary.version;
@@ -205,6 +205,24 @@ export async function readEnvironment(): Promise<EnvironmentInfo> {
     hardwareConcurrency: navigator.hardwareConcurrency,
     devicePixelRatio: typeof devicePixelRatio === 'number' ? devicePixelRatio : 1,
   };
+}
+
+/**
+ * The browser's own name out of a UA-CH brands list.
+ *
+ * Every Chromium-derived browser lists a generic `Chromium` entry beside its
+ * real one, along with a deliberately varying GREASE entry, and the order is
+ * shuffled on purpose. Taking the first entry that is not GREASE therefore
+ * files Edge, Opera and Brave as plain "Chromium" — and does so unpredictably,
+ * so the same browser can name itself differently between two runs. The real
+ * brand is whichever named entry is not the generic one.
+ */
+export function pickBrand(
+  list: Array<{ brand: string; version: string }> | undefined,
+): { brand: string; version: string } | undefined {
+  const named = list?.filter((b) => !/Not.?A.?Brand/i.test(b.brand));
+  if (!named?.length) return undefined;
+  return named.find((b) => !/^Chromium$/i.test(b.brand)) ?? named[0];
 }
 
 /**
