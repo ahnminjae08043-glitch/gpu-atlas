@@ -100,6 +100,12 @@ distinct screen positions and never occluded one another.
 npm install gpu-atlas
 ```
 
+Or without installing anything, straight from a CDN:
+
+```js
+import { probe } from 'https://esm.sh/gpu-atlas';
+```
+
 ```js
 import { probe, breakingIssues, pickFormat } from 'gpu-atlas';
 

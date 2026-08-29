@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+# id-token is what makes this work without a token: GitHub mints a short-lived
+# OIDC credential that npm verifies against the trusted publisher configured on
+# the package. Nothing secret is stored in the repository.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      # setup-node still ships npm 10; trusted publishing needs 11.5.1 or newer.
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - run: npm ci
+
+      # A tag that disagrees with package.json would publish the wrong version
+      # under the right name, which is far worse than a failed release.
+      - name: Check the tag matches package.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "tag $tag does not match package.json $pkg" >&2
+            exit 1
+          fi
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build library
+        run: npx vite build
+
+      # A re-run, or a tag pushed for a version that went out by hand, should
+      # not fail the release — there is simply nothing left to do.
+      - name: Publish
+        run: |
+          name="$(node -p "require('./package.json').name")"
+          version="$(node -p "require('./package.json').version")"
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already on npm — nothing to publish"
+            exit 0
+          fi
+          npm publish --access public
