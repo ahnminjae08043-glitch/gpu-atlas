@@ -1,0 +1,1107 @@
+{
+  "schema": 4,
+  "capturedAt": "2026-08-29T01:55:19.784Z",
+  "fingerprint": "5a265bc5934c1bbc7a4f1ba1b44978c7",
+  "environment": {
+    "platform": "Android 16.0.0",
+    "browser": "Samsung Internet",
+    "browserVersion": "30.0.0.67",
+    "mobile": true,
+    "deviceMemoryGB": 8,
+    "hardwareConcurrency": 8,
+    "devicePixelRatio": 3
+  },
+  "adapter": {
+    "vendor": "qualcomm",
+    "architecture": "adreno-7xx",
+    "device": "",
+    "description": "",
+    "isFallbackAdapter": false,
+    "powerPreference": "default"
+  },
+  "declared": {
+    "features": [
+      "clip-distances",
+      "core-features-and-limits",
+      "depth-clip-control",
+      "depth32float-stencil8",
+      "dual-source-blending",
+      "float32-blendable",
+      "indirect-first-instance",
+      "primitive-index",
+      "rg11b10ufloat-renderable",
+      "shader-f16",
+      "subgroups",
+      "texture-component-swizzle",
+      "texture-compression-astc",
+      "texture-compression-astc-sliced-3d",
+      "texture-compression-bc",
+      "texture-compression-bc-sliced-3d",
+      "texture-compression-etc2",
+      "texture-formats-tier1",
+      "texture-formats-tier2",
+      "timestamp-query"
+    ],
+    "limits": {
+      "maxBindGroups": 4,
+      "maxBindGroupsPlusVertexBuffers": 24,
+      "maxBindingsPerBindGroup": 1000,
+      "maxBufferSize": 1073741824,
+      "maxColorAttachmentBytesPerSample": 32,
+      "maxColorAttachments": 8,
+      "maxComputeInvocationsPerWorkgroup": 1024,
+      "maxComputeWorkgroupSizeX": 1024,
+      "maxComputeWorkgroupSizeY": 1024,
+      "maxComputeWorkgroupSizeZ": 64,
+      "maxComputeWorkgroupStorageSize": 32768,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxDynamicStorageBuffersPerPipelineLayout": 8,
+      "maxDynamicUniformBuffersPerPipelineLayout": 10,
+      "maxInterStageShaderVariables": 16,
+      "maxSampledTexturesPerShaderStage": 16,
+      "maxSamplersPerShaderStage": 16,
+      "maxStorageBufferBindingSize": 134217728,
+      "maxStorageBuffersPerShaderStage": 10,
+      "maxStorageTexturesPerShaderStage": 8,
+      "maxTextureArrayLayers": 2048,
+      "maxTextureDimension1D": 16384,
+      "maxTextureDimension2D": 16384,
+      "maxTextureDimension3D": 2048,
+      "maxUniformBufferBindingSize": 65536,
+      "maxUniformBuffersPerShaderStage": 12,
+      "maxVertexAttributes": 30,
+      "maxVertexBufferArrayStride": 2048,
+      "maxVertexBuffers": 8,
+      "minStorageBufferOffsetAlignment": 256,
+      "minUniformBufferOffsetAlignment": 256
+    },
+    "preferredCanvasFormat": "rgba8unorm"
+  },
+  "verified": {
+    "formats": [
+      {
+        "format": "r8unorm",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "r8snorm",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "r8uint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::R8Uint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "r8sint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::R8Sint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "r16uint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::R16Uint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "r16sint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::R16Sint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "r16float",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "rg8unorm",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "rg8snorm",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "rg8uint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RG8Uint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "rg8sint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RG8Sint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "r32uint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": false,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::R32Uint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          },
+          {
+            "kind": "validation",
+            "message": "The texture format (TextureFormat::R32Uint) does not support multisampling.\n - While validating [TextureDescriptor].\n - While calling [Device].CreateTexture([TextureDescriptor]).\n",
+            "stage": "msaa4x"
+          }
+        ]
+      },
+      {
+        "format": "r32sint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": false,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::R32Sint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          },
+          {
+            "kind": "validation",
+            "message": "The texture format (TextureFormat::R32Sint) does not support multisampling.\n - While validating [TextureDescriptor].\n - While calling [Device].CreateTexture([TextureDescriptor]).\n",
+            "stage": "msaa4x"
+          }
+        ]
+      },
+      {
+        "format": "r32float",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "rg16uint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RG16Uint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "rg16sint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RG16Sint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "rg16float",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "rgba8unorm",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "rgba8unorm-srgb",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": false,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "The texture usage (TextureUsage::StorageBinding) includes TextureUsage::StorageBinding, which is incompatible with the format (TextureFormat::RGBA8UnormSrgb).\n - While validating [TextureDescriptor].\n - While calling [Device].CreateTexture([TextureDescriptor]).\n",
+            "stage": "storage"
+          }
+        ]
+      },
+      {
+        "format": "rgba8snorm",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "rgba8uint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RGBA8Uint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "rgba8sint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RGBA8Sint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "bgra8unorm",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": false,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "The texture usage (TextureUsage::StorageBinding) includes TextureUsage::StorageBinding, which is incompatible with the format (TextureFormat::BGRA8Unorm).\n - While validating [TextureDescriptor].\n - While calling [Device].CreateTexture([TextureDescriptor]).\n",
+            "stage": "storage"
+          }
+        ]
+      },
+      {
+        "format": "bgra8unorm-srgb",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": false,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "The texture usage (TextureUsage::StorageBinding) includes TextureUsage::StorageBinding, which is incompatible with the format (TextureFormat::BGRA8UnormSrgb).\n - While validating [TextureDescriptor].\n - While calling [Device].CreateTexture([TextureDescriptor]).\n",
+            "stage": "storage"
+          }
+        ]
+      },
+      {
+        "format": "rgb10a2uint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RGB10A2Uint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "rgb10a2unorm",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "rg11b10ufloat",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "rg32uint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": false,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RG32Uint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          },
+          {
+            "kind": "validation",
+            "message": "The texture format (TextureFormat::RG32Uint) does not support multisampling.\n - While validating [TextureDescriptor].\n - While calling [Device].CreateTexture([TextureDescriptor]).\n",
+            "stage": "msaa4x"
+          }
+        ]
+      },
+      {
+        "format": "rg32sint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": false,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RG32Sint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          },
+          {
+            "kind": "validation",
+            "message": "The texture format (TextureFormat::RG32Sint) does not support multisampling.\n - While validating [TextureDescriptor].\n - While calling [Device].CreateTexture([TextureDescriptor]).\n",
+            "stage": "msaa4x"
+          }
+        ]
+      },
+      {
+        "format": "rg32float",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": false,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "The texture format (TextureFormat::RG32Float) does not support multisampling.\n - While validating [TextureDescriptor].\n - While calling [Device].CreateTexture([TextureDescriptor]).\n",
+            "stage": "msaa4x"
+          }
+        ]
+      },
+      {
+        "format": "rgba16uint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RGBA16Uint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "rgba16sint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RGBA16Sint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          }
+        ]
+      },
+      {
+        "format": "rgba16float",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "rgba32uint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": false,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RGBA32Uint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          },
+          {
+            "kind": "validation",
+            "message": "The texture format (TextureFormat::RGBA32Uint) does not support multisampling.\n - While validating [TextureDescriptor].\n - While calling [Device].CreateTexture([TextureDescriptor]).\n",
+            "stage": "msaa4x"
+          }
+        ]
+      },
+      {
+        "format": "rgba32sint",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": true,
+        "multisample4x": false,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "Blending is enabled but color format (TextureFormat::RGBA32Sint) is not blendable.\n - While validating targets[0] framebuffer output.\n - While validating fragment state.\n - While calling [Device].CreateRenderPipeline([RenderPipelineDescriptor]).\n",
+            "stage": "blend"
+          },
+          {
+            "kind": "validation",
+            "message": "The texture format (TextureFormat::RGBA32Sint) does not support multisampling.\n - While validating [TextureDescriptor].\n - While calling [Device].CreateTexture([TextureDescriptor]).\n",
+            "stage": "msaa4x"
+          }
+        ]
+      },
+      {
+        "format": "rgba32float",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": true,
+        "storageWritable": true,
+        "multisample4x": false,
+        "errors": [
+          {
+            "kind": "validation",
+            "message": "The texture format (TextureFormat::RGBA32Float) does not support multisampling.\n - While validating [TextureDescriptor].\n - While calling [Device].CreateTexture([TextureDescriptor]).\n",
+            "stage": "msaa4x"
+          }
+        ]
+      },
+      {
+        "format": "stencil8",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "depth16unorm",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "depth24plus",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "depth24plus-stencil8",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "depth32float",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "depth32float-stencil8",
+        "requiresFeature": "depth32float-stencil8",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": true,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": true,
+        "errors": []
+      },
+      {
+        "format": "bc1-rgba-unorm",
+        "requiresFeature": "texture-compression-bc",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": false,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": false,
+        "errors": []
+      },
+      {
+        "format": "bc3-rgba-unorm",
+        "requiresFeature": "texture-compression-bc",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": false,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": false,
+        "errors": []
+      },
+      {
+        "format": "bc4-r-unorm",
+        "requiresFeature": "texture-compression-bc",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": false,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": false,
+        "errors": []
+      },
+      {
+        "format": "bc5-rg-unorm",
+        "requiresFeature": "texture-compression-bc",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": false,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": false,
+        "errors": []
+      },
+      {
+        "format": "bc6h-rgb-ufloat",
+        "requiresFeature": "texture-compression-bc",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": false,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": false,
+        "errors": []
+      },
+      {
+        "format": "bc7-rgba-unorm",
+        "requiresFeature": "texture-compression-bc",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": false,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": false,
+        "errors": []
+      },
+      {
+        "format": "etc2-rgb8unorm",
+        "requiresFeature": "texture-compression-etc2",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": false,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": false,
+        "errors": []
+      },
+      {
+        "format": "etc2-rgba8unorm",
+        "requiresFeature": "texture-compression-etc2",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": false,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": false,
+        "errors": []
+      },
+      {
+        "format": "eac-r11unorm",
+        "requiresFeature": "texture-compression-etc2",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": false,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": false,
+        "errors": []
+      },
+      {
+        "format": "astc-4x4-unorm",
+        "requiresFeature": "texture-compression-astc",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": false,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": false,
+        "errors": []
+      },
+      {
+        "format": "astc-8x8-unorm",
+        "requiresFeature": "texture-compression-astc",
+        "featureDeclared": true,
+        "creatable": true,
+        "sampleable": true,
+        "renderable": false,
+        "blendable": false,
+        "storageWritable": false,
+        "multisample4x": false,
+        "errors": []
+      }
+    ],
+    "shaders": [
+      {
+        "id": "baseline",
+        "description": "The simplest possible render pipeline — a reference point for the rest",
+        "skipped": false,
+        "compiled": true,
+        "pipelineCreated": true,
+        "messages": [],
+        "compileMs": 4
+      },
+      {
+        "id": "uniform-dynamic-index",
+        "description": "Dynamic indexing into a uniform array — backends add clamping code or slow down",
+        "skipped": false,
+        "compiled": true,
+        "pipelineCreated": true,
+        "messages": [],
+        "compileMs": 5.099999997764826
+      },
+      {
+        "id": "nested-loop-break",
+        "description": "Nested loops with conditional breaks — where control flow flattening diverges",
+        "skipped": false,
+        "compiled": true,
+        "pipelineCreated": true,
+        "messages": [],
+        "compileMs": 1.699999999254942
+      },
+      {
+        "id": "function-pointers",
+        "description": "Passing var<function> pointers — naga and tint handle this differently",
+        "skipped": false,
+        "compiled": true,
+        "pipelineCreated": true,
+        "messages": [],
+        "compileMs": 1.5
+      },
+      {
+        "id": "workgroup-atomics",
+        "description": "Workgroup memory with atomics and barriers",
+        "skipped": false,
+        "compiled": true,
+        "pipelineCreated": true,
+        "messages": [],
+        "compileMs": 3.199999999254942
+      },
+      {
+        "id": "storage-runtime-array",
+        "description": "Runtime-sized array with arrayLength — exercises binding metadata handling",
+        "skipped": false,
+        "compiled": true,
+        "pipelineCreated": true,
+        "messages": [],
+        "compileMs": 1.5
+      },
+      {
+        "id": "struct-alignment",
+        "description": "Nested struct alignment and stride — a classic source of backend layout bugs",
+        "skipped": false,
+        "compiled": true,
+        "pipelineCreated": true,
+        "messages": [],
+        "compileMs": 1.699999999254942
+      },
+      {
+        "id": "override-constants",
+        "description": "Override constants — pipeline-time specialization, unevenly supported",
+        "skipped": false,
+        "compiled": true,
+        "pipelineCreated": true,
+        "messages": [],
+        "compileMs": 5.100000001490116
+      },
+      {
+        "id": "textureSampleLevel-uniform",
+        "description": "Texture sampling under non-uniform control flow — uniformity analysis differs",
+        "skipped": false,
+        "compiled": true,
+        "pipelineCreated": true,
+        "messages": [],
+        "compileMs": 2.800000000745058
+      },
+      {
+        "id": "long-unrolled",
+        "description": "A large shader — exists to measure compile time",
+        "skipped": false,
+        "compiled": true,
+        "pipelineCreated": true,
+        "messages": [],
+        "compileMs": 4
+      },
+      {
+        "id": "f16-arithmetic",
+        "description": "f16 arithmetic via shader-f16 — central to mobile performance, unevenly available",
+        "skipped": false,
+        "compiled": true,
+        "pipelineCreated": true,
+        "messages": [],
+        "compileMs": 1.699999999254942
+      }
+    ],
+    "limits": [
+      {
+        "limit": "maxBufferSize",
+        "declared": 1073741824,
+        "achieved": 1073741824,
+        "honored": true
+      },
+      {
+        "limit": "maxStorageBufferBindingSize",
+        "declared": 134217728,
+        "achieved": 134217728,
+        "honored": true
+      },
+      {
+        "limit": "maxUniformBufferBindingSize",
+        "declared": 65536,
+        "achieved": 65536,
+        "honored": true
+      },
+      {
+        "limit": "maxTextureDimension2D",
+        "declared": 16384,
+        "achieved": 16384,
+        "honored": true
+      },
+      {
+        "limit": "maxTextureArrayLayers",
+        "declared": 2048,
+        "achieved": 2048,
+        "honored": true
+      },
+      {
+        "limit": "maxComputeWorkgroupStorageSize",
+        "declared": 32768,
+        "achieved": 32768,
+        "honored": true
+      },
+      {
+        "limit": "maxComputeInvocationsPerWorkgroup",
+        "declared": 1024,
+        "achieved": 1024,
+        "honored": true
+      }
+    ],
+    "deviceLost": false
+  },
+  "benchmarks": {
+    "results": [
+      {
+        "id": "drawcall-overhead",
+        "description": "Empty draw calls — browser validation and driver call cost",
+        "medianMs": 15.7,
+        "minMs": 14.2,
+        "variation": 0.063,
+        "timing": "wall-clock",
+        "samples": 5,
+        "repetitions": 6,
+        "ticks": 157,
+        "quantized": false,
+        "throughput": 764331.21,
+        "throughputUnit": "draws/s"
+      },
+      {
+        "id": "pipeline-switch",
+        "description": "Alternating between 8 pipelines per draw — state change cost",
+        "medianMs": 11,
+        "minMs": 9.3,
+        "variation": 0.082,
+        "timing": "wall-clock",
+        "samples": 5,
+        "repetitions": 1,
+        "ticks": 110,
+        "quantized": false,
+        "throughput": 181818.18,
+        "throughputUnit": "switches/s"
+      },
+      {
+        "id": "bindgroup-switch",
+        "description": "Alternating between 64 bind groups per draw — resource binding cost",
+        "medianMs": 14.3,
+        "minMs": 12.9,
+        "variation": 0.062,
+        "timing": "wall-clock",
+        "samples": 5,
+        "repetitions": 2,
+        "ticks": 143,
+        "quantized": false,
+        "throughput": 279720.28,
+        "throughputUnit": "binds/s"
+      },
+      {
+        "id": "fillrate",
+        "description": "1024x1024 fullscreen overdraw, blended — fragment throughput",
+        "medianMs": 10.2892,
+        "minMs": 10.2892,
+        "variation": 0.003,
+        "timing": "timestamp-query",
+        "samples": 7,
+        "repetitions": 8,
+        "ticks": 157,
+        "quantized": false,
+        "throughput": 6522.29,
+        "throughputUnit": "MPixel/s"
+      },
+      {
+        "id": "fragment-alu",
+        "description": "Heavy per-pixel arithmetic — shader math, separated from fill rate",
+        "medianMs": 11.7309,
+        "minMs": 11.7309,
+        "variation": 0,
+        "timing": "timestamp-query",
+        "samples": 7,
+        "repetitions": 2,
+        "ticks": 179,
+        "quantized": false,
+        "throughput": 178.77,
+        "throughputUnit": "MPixel/s"
+      },
+      {
+        "id": "triangle-throughput",
+        "description": "Many small triangles — geometry throughput",
+        "medianMs": 24.576,
+        "minMs": 24.576,
+        "variation": 0.001,
+        "timing": "timestamp-query",
+        "samples": 7,
+        "repetitions": 16,
+        "ticks": 375,
+        "quantized": false,
+        "throughput": 65.1,
+        "throughputUnit": "MTri/s"
+      },
+      {
+        "id": "texture-sampling",
+        "description": "32 texture samples per pixel — texture bandwidth",
+        "medianMs": 12.1897,
+        "minMs": 12.1242,
+        "variation": 0.004,
+        "timing": "timestamp-query",
+        "samples": 7,
+        "repetitions": 4,
+        "ticks": 186,
+        "quantized": false,
+        "throughput": 11.01,
+        "throughputUnit": "GSample/s"
+      }
+    ],
+    "timestampQuery": true,
+    "timerResolutionNs": 65536,
+    "wallClockResolutionMs": 0.09999999776482582,
+    "totalMs": 1584
+  },
+  "discrepancies": [],
+  "elapsedMs": 5019
+}

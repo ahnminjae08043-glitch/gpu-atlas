@@ -16,6 +16,11 @@
  * changes meaning, and record why below — consumers compare against it to know
  * which fields they can rely on.
  *
+ * 5 — EnvironmentInfo.mobile stopped calling every iPad a desktop, and
+ *     platform is now filled in for browsers without UA-CH. Profiles at
+ *     schema 4 and below cannot distinguish a Mac from an iPad at all, so
+ *     treat their environment fields as approximate.
+ *
  * 4 — EnvironmentInfo.userAgent removed.
  *     Browser, version, platform and mobile are already parsed into their own
  *     fields, so the raw string was duplicate data — and a fingerprinting
@@ -48,7 +53,7 @@
  *
  * 1 — Initial schema.
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /**
  * Below this, benchmark numbers cannot be trusted for comparison: version 1

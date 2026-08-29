@@ -197,14 +197,48 @@ export async function readEnvironment(): Promise<EnvironmentInfo> {
     // The UA string is parsed above but deliberately not kept: everything the
     // profile needs from it is already broken out, and the raw value only adds
     // identifying detail to something people are asked to share.
-    platform,
+    platform: platform ?? guessPlatform(ua),
     browser: brand ?? parsed.browser,
     browserVersion: brandVersion ?? parsed.version,
-    mobile: mobile ?? /Mobi|Android|iPhone|iPad/i.test(ua),
+    mobile: mobile ?? looksMobile(ua),
     deviceMemoryGB: (navigator as { deviceMemory?: number }).deviceMemory,
     hardwareConcurrency: navigator.hardwareConcurrency,
     devicePixelRatio: typeof devicePixelRatio === 'number' ? devicePixelRatio : 1,
   };
+}
+
+/**
+ * Whether this is a handheld device.
+ *
+ * The obvious regex files every iPad as a desktop: since iPadOS 13, Safari
+ * reports a Macintosh user agent containing neither "iPad" nor "Mobi". A Mac
+ * with a touchscreen does not exist, so maxTouchPoints is what separates them.
+ */
+function looksMobile(ua: string): boolean {
+  if (/Mobi|Android|iPhone|iPad|iPod/i.test(ua)) return true;
+  return isTouchMac(ua);
+}
+
+/**
+ * A coarse platform name for browsers without UA-CH — which is to say Safari,
+ * where the field was otherwise left empty. A profile that cannot say whether
+ * it came from a Mac or an iPad is not much use in a shared dataset.
+ */
+function guessPlatform(ua: string): string | undefined {
+  if (isTouchMac(ua)) return 'iPadOS';
+  if (/iPhone|iPod/i.test(ua)) return 'iOS';
+  if (/iPad/i.test(ua)) return 'iPadOS';
+  if (/Android/i.test(ua)) return 'Android';
+  if (/Macintosh|Mac OS X/i.test(ua)) return 'macOS';
+  if (/Windows/i.test(ua)) return 'Windows';
+  if (/Linux/i.test(ua)) return 'Linux';
+  return undefined;
+}
+
+function isTouchMac(ua: string): boolean {
+  if (!/Macintosh|Mac OS X/i.test(ua)) return false;
+  const touch = typeof navigator !== 'undefined' ? (navigator.maxTouchPoints ?? 0) : 0;
+  return touch > 1;
 }
 
 function parseUA(ua: string): { browser: string; version: string } {

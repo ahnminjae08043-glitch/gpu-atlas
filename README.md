@@ -12,50 +12,65 @@ device description it is about.
 
 ## What measuring three devices turned up
 
-| | desktop | laptop | phone |
+| | desktop | tablet | phone |
 |---|---|---|---|
-| GPU | NVIDIA Lovelace | Apple silicon | Adreno 7xx |
-| browser | Chrome 151 | Safari 26 | Samsung Internet 30 |
+| GPU | NVIDIA Lovelace | Apple | Adreno 7xx |
+| browser | Chrome 151 | Safari 26.6 | Samsung Internet 30 |
+| OS | Windows | iPadOS | Android 16 |
+
+The tablet is an iPad, and finding that out took longer than it should have.
+Since iPadOS 13 Safari sends a Macintosh user agent containing neither `iPad`
+nor `Mobi`, so the probe filed it as a desktop and left `platform` empty — a
+profile that could not say whether it came from a Mac or an iPad. Schema 5 uses
+`maxTouchPoints` to tell them apart. Everything below was re-measured after the
+fix; profiles at schema 4 and earlier cannot make the distinction at all.
 
 ### Performance does not scale by a single factor
 
-| benchmark | desktop | Apple | Adreno | spread |
+| benchmark | desktop | iPad | Adreno | spread |
 |---|---:|---:|---:|---:|
-| triangle throughput | 3,906 MTri/s | 354 | 65 | **60x** |
-| texture sampling | 238 GSample/s | 18.4 | 11.0 | 22x |
-| fill rate | 124,464 MPixel/s | 35,079 | 6,522 | 19x |
-| bind group switching | 3,913,043 /s | 909,091 | 217,391 | 18x |
-| fragment ALU | 2,994 MPixel/s | 267 | 179 | 17x |
-| draw call overhead | 9,896,907 /s | 1,818,182 | 952,381 | 10x |
-| pipeline switching | 1,698,113 /s | 1,363,636 | 203,046 | 8x |
+| triangle throughput | 4,246 MTri/s | 356 | 65 | **65x** |
+| texture sampling | 254 GSample/s | 17.4 | 11.0 | 23x |
+| fill rate | 127,117 MPixel/s | 36,263 | 6,522 | 20x |
+| fragment ALU | 3,122 MPixel/s | 266 | 179 | 18x |
+| bind group switching | 4,067,797 /s | 888,889 | 279,720 | 14x |
+| pipeline switching | 1,904,762 /s | 1,200,000 | 181,818 | 11x |
+| draw call overhead | 6,185,567 /s | 1,828,571 | 764,331 | 8x |
 
-Geometry spreads three times wider than anything else, and the ordering is not
-uniform either. Against Apple silicon the desktop's geometry lead (11x) is
-ordinary and its texture sampling lead (13x) is the largest; against Adreno,
-geometry is the worst axis by a distance. Tile-based mobile GPUs pay binning
-cost on vertices, so **on phones, cutting triangles buys far more than cutting
-pixels** — the reverse of the desktop instinct.
+Geometry spreads nearly three times wider than the next-widest axis, and the
+ordering is not uniform either. Against the iPad the desktop's geometry lead
+(12x) is ordinary and its texture sampling lead (15x) is the largest; against
+Adreno, geometry is the worst axis by a distance. Tile-based mobile GPUs pay
+binning cost on vertices, so **on phones, cutting triangles buys far more than
+cutting pixels** — the reverse of the desktop instinct.
 
-Pipeline switching is the flattest axis of all: Apple silicon is within 1.2x of
-a desktop discrete GPU there while being 11x behind on geometry. Any single
-"this device is N times slower" number would be wrong in both directions at
-once.
+Pipeline switching is the flattest axis of all: the iPad is within 1.6x of a
+desktop discrete GPU there while being 12x behind on geometry. Any single "this
+device is N times slower" number would be wrong in both directions at once.
+
+Draw call overhead came back flagged `unreliable` on the desktop — the run
+varied more than 15% between samples. The number is printed rather than hidden,
+with the flag attached.
 
 ### Capability differences that break code
 
-**`maxUniformBufferBindingSize` differs by 10,922x.** Safari allows 683MB;
-Chrome and Samsung Internet cap at 64KB. Code developed on a Mac against large
-uniform buffers does not merely run slower elsewhere — it fails outright.
+**`maxUniformBufferBindingSize` differs by 10,923x.** The iPad allows
+715,827,880 bytes; Chrome and Samsung Internet cap at 65,536. Code developed
+against large uniform buffers does not merely run slower elsewhere — it fails
+outright. Treat the upper figure as one device's, not WebKit's: it is large
+enough to look memory-derived, and no second Apple device has been measured.
 
-**No compressed texture format works everywhere.** Desktop Chrome has BC only.
-Safari has ETC2 and ASTC but no BC. Adreno has all three. Desktop Chrome and
-Safari — both desktops — share *zero* compressed formats.
+**No compressed texture format works on all three.** Desktop Chrome has BC only
+(6 formats). The iPad has ETC2 and ASTC but no BC (5). Adreno has all three
+(11). Desktop Chrome and the iPad share *zero* — and across all three devices
+the intersection is also empty, so there is no single compressed format to ship.
 
-**`bgra8unorm` is storage-writable on desktop and on Apple, but not on Adreno.**
-It is also the preferred canvas format on two of the three (the phone reports
-`rgba8unorm`), which makes it an easy thing to build on and have fail on phones.
+**`bgra8unorm` is storage-writable on desktop and on the iPad, but not on
+Adreno.** It is also the preferred canvas format on those same two, while the
+phone reports `rgba8unorm` — an easy thing to build on and have fail on phones.
 
-`maxStorageBufferBindingSize` spans 16x (2GB / 683MB / 128MB).
+`maxStorageBufferBindingSize` spans 16x (2.1GB / 716MB / 134MB) and
+`maxBufferSize` 3x.
 
 ### Browsers quantize GPU timestamps, and by different amounts
 
@@ -66,7 +81,7 @@ Measured rather than assumed:
 |---|---|---|
 | Chrome 151 | 65,536 ns (2^16) | 0.1 ms |
 | Samsung Internet 30 | 65,536 ns (2^16) | 0.1 ms |
-| Safari 26 | no quantization detected | 1 ms |
+| Safari 26.6 | no quantization detected | 1 ms |
 
 Both Chromium browsers return exactly 2^16 despite different GPU vendors and
 operating systems, while WebKit does not quantize the GPU timer at all — this is
@@ -80,18 +95,18 @@ reported byte-identical timings.
 ### A benchmark that measured nothing
 
 Fragment work was originally created by stacking identical opaque fullscreen
-draws. On Apple silicon that reported 112,524 MPixel/s — a 37x *advantage* over
-an RTX 4060, which is not plausible. A tile-based deferred renderer discards
+draws. On the iPad that reported 112,524 MPixel/s — a 36x *advantage* over an
+RTX 4060, which is not plausible. A tile-based deferred renderer discards
 occluded opaque fragments before shading them, so every draw but the last was
 being thrown away. Adreno, tile-based but not deferred to the same degree, did
 not do this, so the same benchmark id was measuring different work per
 architecture.
 
 Additive blending fixes it, since each draw must contribute to the accumulated
-result. The corrected figure is 267 MPixel/s — **530x lower**, and consistent
-with a laptop GPU. Geometry throughput was unaffected, as its triangles occupy
-distinct screen positions and never occluded one another.
-
+result. The corrected figure is 266 MPixel/s — **423x lower**, and in line with
+the rest of that device's numbers. Geometry throughput was unaffected, as its
+triangles occupy distinct screen positions and never occluded one another, which
+is the signature a real fix should have.
 ---
 
 ## Usage
@@ -125,12 +140,12 @@ Comparing devices — this needs no GPU, so it also works in Node:
 ```js
 import { compareProfiles, formatComparison } from 'gpu-atlas';
 
-const comparison = compareProfiles([desktop, laptop, phone]);
+const comparison = compareProfiles([desktop, tablet, phone]);
 console.log(formatComparison(comparison));
 
 // Sorted by spread, so the worst portability risk is first
 const worst = comparison.benchmarks[0];
-console.log(worst.id, worst.ratio);   // "triangle-throughput", 60.0
+console.log(worst.id, worst.ratio);   // "triangle-throughput", 65.2
 ```
 
 Measurements flagged `unreliable` — quantized or unstable — are marked rather
@@ -239,7 +254,9 @@ more promising route for anyone who wants to try again.
 
 Early, and honest about it. **Three devices is not a dataset.** The differences
 above are facts about these three machines; whether they generalize needs many
-more profiles. Firefox and iOS are entirely unmeasured.
+more profiles. Firefox is entirely unmeasured, and so is any iPhone — the one
+Apple device here is an iPad, which is not the same GPU class and not the same
+browser build.
 
 Worth stating plainly: the original premise — that browsers misreport their own
 capabilities — has not held up. All three devices did exactly what they
