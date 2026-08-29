@@ -1,7 +1,7 @@
 {
   "name": "gpu-atlas",
   "version": "0.1.0",
-  "description": "What WebGPU actually does on this device — verified by creating the resources and running the passes, not by reading declared limits.",
+  "description": "Probe what WebGPU actually does on a device — 53 formats, real limits, 7 benchmarks — then compare devices to find what is safe to depend on.",
   "keywords": [
     "webgpu",
     "gpu",
