@@ -177,17 +177,25 @@ export async function readEnvironment(): Promise<EnvironmentInfo> {
   if (uaData) {
     mobile = uaData.mobile;
     platform = uaData.platform;
+    // brands is low-entropy and needs no permission; fullVersionList can be
+    // refused. Reading the cheap one first means a rejected request costs only
+    // the exact version rather than the browser's name — and refusing is
+    // exactly what privacy-hardened builds do.
+    const low = pickBrand(uaData.brands);
+    if (low) {
+      brand = low.brand;
+      brandVersion = low.version;
+    }
     try {
       const high = await uaData.getHighEntropyValues(['platformVersion', 'fullVersionList']);
-      const list = high.fullVersionList ?? uaData.brands;
-      const primary = pickBrand(list);
-      if (primary) {
-        brand = primary.brand;
-        brandVersion = primary.version;
+      const better = pickBrand(high.fullVersionList);
+      if (better) {
+        brand = better.brand;
+        brandVersion = better.version;
       }
       if (high.platformVersion) platform = `${platform} ${high.platformVersion}`;
     } catch {
-      // Permission or implementation gaps just fall through to UA parsing.
+      // Refused or unimplemented. The low-entropy name above still stands.
     }
   }
 
@@ -259,12 +267,21 @@ function isTouchMac(ua: string): boolean {
   return touch > 1;
 }
 
-function parseUA(ua: string): { browser: string; version: string } {
-  // Order matters — Edge's UA contains Chrome, and Chrome's contains Safari.
+export function parseUA(ua: string): { browser: string; version: string } {
+  // Order matters, and steeply. Every Chromium-derived browser puts Chrome/ in
+  // its user agent and Chrome puts Safari/ in its own, so the specific names
+  // must be tested before the generic ones or four browsers collapse into
+  // "Chrome". This path runs whenever UA-CH is unavailable: Firefox and Safari
+  // always, and privacy-hardened Chromium builds that withhold their brands.
   const patterns: Array<[string, RegExp]> = [
     ['Edge', /Edg(?:e|A|iOS)?\/([\d.]+)/],
     ['Opera', /OPR\/([\d.]+)/],
-    ['Firefox', /Firefox\/([\d.]+)/],
+    ['Samsung Internet', /SamsungBrowser\/([\d.]+)/],
+    ['Vivaldi', /Vivaldi\/([\d.]+)/],
+    ['Yandex', /YaBrowser\/([\d.]+)/],
+    ['UC Browser', /UCBrowser\/([\d.]+)/],
+    // Firefox on iOS is a WebKit shell and says FxiOS, never Firefox.
+    ['Firefox', /(?:Firefox|FxiOS)\/([\d.]+)/],
     ['Chrome', /(?:Chrome|CriOS)\/([\d.]+)/],
     ['Safari', /Version\/([\d.]+).*Safari/],
   ];
